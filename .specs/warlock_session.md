@@ -47,7 +47,7 @@ class WarlockMemory:
 
     def print_log(self):
         for entry in self._log:
-            print(f"[{entry['ts']}]  {entry['key']} = {entry['value']}")
+            print(f"[{entry['ts']}] {entry['key']} = {entry['value']}")
 ```
 
 **5 methods:**
@@ -84,7 +84,7 @@ class Agent:
         print(f"Memory: {self.memory.dump()}")
 ```
 
-Then test it immediately in a scratch script (or in `main.py`):
+Then test it immediately in `main.py`:
 
 ```python
 from warlock.memory import WarlockMemory
@@ -109,7 +109,7 @@ Identity: I move and shape data. Nothing else.
 Memory: {'problem_statement': 'Ingest CSV into BigQuery'}
 ```
 
-Once that runs cleanly, the next step is adding a `run(task)` method to Agent that calls the Claude API — this is when the agent becomes live.
+Once that runs cleanly, the next step is adding a `run(task)` method to `Agent` that calls the Claude API — this is when the agent becomes live.
 
 ---
 
@@ -117,13 +117,18 @@ Once that runs cleanly, the next step is adding a `run(task)` method to Agent th
 
 ```
 warlock/
-├── memory.py    ✓ done
-└── agent.py     ← next
+├── __init__.py
+├── memory.py        ✓ done
+├── agent.py         ← next
+└── agents/
+    └── __init__.py
+main.py              (stub — update to test agent.py)
+pyproject.toml
 ```
 
 ---
 
-## What an Agent needs (derived last session)
+## What an Agent needs (derived from design)
 
 ```
 1. A task        →  what they are supposed to do
