@@ -15,21 +15,45 @@ Read all three files in `.specs/`:
 - `.specs/agents.md`
 - `.specs/warlock_session.md`
 
-### 2. Inspect what changed this session
+### 2. Run the safety scan (blocking gate)
+Spawn a subagent to scan `.specs/` and `.claude/` for security issues before any spec file is written or committed.
+
+Use the Agent tool with this prompt:
+
+> You are a security scanner. Search the directories `.specs/` and `.claude/` (excluding `.claude/skills/`) for any content that should never be committed. Report findings grouped by severity: CRITICAL (stop immediately) and WARNING (review before committing).
+>
+> Scan for:
+> - API keys, tokens, secrets (patterns: `sk-`, `key =`, `token =`, `secret =`, `password =`, `Bearer `, `AIza`, `AKIA`, any 40+ character hex/base64 strings)
+> - Hardcoded credentials or connection strings (database URLs with passwords, `postgresql://user:pass@`, etc.)
+> - Private keys or certificate content (`-----BEGIN`, `-----END`)
+> - Email addresses in unexpected places (outside of known author fields)
+> - Absolute local file paths that expose directory structure (e.g. `/home/username/`)
+> - Any line containing the word `PRIVATE`, `SECRET`, or `CONFIDENTIAL` in a value context
+>
+> For each finding report: file, line number, the offending content (redacted to first 20 chars), and severity.
+> If nothing is found, output: `SCAN CLEAR — no sensitive content detected.`
+
+**If the subagent reports any CRITICAL findings:** stop the dream sequence, do not update any spec files, and show the findings to the user with: `Safety scan blocked the dream. Fix the following before closing the session:`
+
+**If only WARNINGs:** show them to the user, then continue the dream sequence.
+
+**If SCAN CLEAR:** continue without comment.
+
+### 3. Inspect what changed this session
 Run `git diff HEAD~1 HEAD --stat` and `git log --oneline -10` to understand what was committed.
 If there are uncommitted changes, run `git diff --stat` and `git status` as well.
 
-### 3. Update `.specs/plan.md`
+### 4. Update `.specs/plan.md`
 - Mark completed phase steps with `[x]`
 - If any design decision changed during the session, update the relevant section
 - Do not add speculative steps — only reflect what actually shipped or was explicitly decided
 
-### 4. Update `.specs/agents.md`
+### 5. Update `.specs/agents.md`
 - Update agent status column for any agent that was created, modified, or tested
 - If new tools were added to an agent, add them to the tools section
 - If the base Agent interface changed, update the interface section
 
-### 5. Rewrite `.specs/warlock_session.md`
+### 6. Rewrite `.specs/warlock_session.md`
 This file is the single source of truth for resuming work. Rewrite it completely with:
 
 **What Warlock is** — keep this section unchanged unless the vision changed
@@ -42,7 +66,7 @@ This file is the single source of truth for resuming work. Rewrite it completely
 
 **Principles** — keep as-is unless something changed
 
-### 6. Print a session summary
+### 7. Print a session summary
 After updating all files, output a short summary to the conversation:
 
 ```
