@@ -66,7 +66,7 @@ The final layer. Responsibilities:
 
 ### Phase 1 — Core (Start here)
 - [ ] `Orchestrator` class in Python — problem decomposition logic, agent registry, routing engine
-- [ ] Shared `Memory` layer — key-value context object agents read/write during a run
+- [x] Shared `Memory` layer — key-value context object agents read/write during a run
 - [ ] Base `Agent` class — interface every specialist agent inherits from
 
 ### Phase 2 — First Agent
@@ -89,6 +89,19 @@ The final layer. Responsibilities:
 - [ ] CLI interface to submit problems to Warlock
 - [ ] Logging and observability per agent
 - [ ] Iterative runs (agents can loop until output is accepted)
+
+---
+
+## Spec Review Protocol
+
+Every time progress is made on this project — after any phase step, agent build, or architectural decision — do the following:
+
+1. **Review** all files in `.specs/` to check for outdated information
+2. **Update** `plan.md` to reflect completed steps, revised phases, and any changed design decisions
+3. **Update** `warlock_session.md` with the current state: what was just built, what's next, and any lessons learned
+4. **Analyze** what the next step now requires given what was just shipped — do not design ahead, adjust only based on what was just learned
+
+This keeps `.specs/` as the living source of truth for the project state.
 
 ---
 
