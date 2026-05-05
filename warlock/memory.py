@@ -3,7 +3,7 @@
 from datetime import datetime
 
 
-class WarlockMemory:
+class Memory:
     # creates the store and the log
     def __init__(self):
         self._store = {}
