@@ -54,7 +54,7 @@ If there are uncommitted changes, run `git diff --stat` and `git status` as well
 - If the base Agent interface changed, update the interface section
 
 ### 6. Rewrite `.specs/warlock_session.md`
-This file is the single source of truth for resuming work. Rewrite it completely with:
+This file is the single source of truth for resuming work. Rewrite it with:
 
 **What Warlock is** — keep this section unchanged unless the vision changed
 
