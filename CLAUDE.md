@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+See `constitution.md` for the spirit, collaboration rules, and core principles of this project.
+
 ## Project
 
 Warlock is a multi-agent AI platform built from scratch — no LangChain. It receives a raw problem, routes it to specialist agents via an orchestrator, and synthesizes a unified output. The architecture is intentionally layered and decoupled: agents never call each other directly; shared memory is the only communication bus.
