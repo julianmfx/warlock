@@ -80,9 +80,14 @@ Specs updated:
 - agents.md — <what changed>
 - warlock_session.md — <what changed>
 
+Removed from warlock_session.md:
+- <section name> — <one line reason why it was removed or where the info now lives>
+
 Next session starts at:
 → <exact next step, file and action>
 ```
+
+**Rule:** only include the `Removed` section if something was actually removed. If nothing was removed, omit it entirely — do not print "Removed: nothing."
 
 That's it. Warlock now dreams.
 
@@ -127,6 +132,10 @@ Specs updated:
 - plan.md   — Memory marked [x] done
 - agents.md — Base Agent status updated to "next"
 - warlock_session.md — Full rewrite with memory.py code and next step pinned
+
+Removed from warlock_session.md:
+- "What an Agent needs" section — content folded into agent.py key concepts block
+- "The 6 specialist agents" table — already covered in full in agents.md and plan.md
 
 Next session starts at:
 → Create warlock/agent.py — Agent class with __init__ and describe()
