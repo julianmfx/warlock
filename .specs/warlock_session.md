@@ -15,14 +15,22 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## What we have built so far
 
+### `constitution.md` ✓ done
+
+The soul of the project. Three sections: the spirit of Warlock (oathbreaker energy), how we build (teach before writing, learn at the same pace), and the laws (one agent one domain, memory is the bus, synthesizer owns truth, cost discipline).
+
+### `CLAUDE.md` ✓ updated
+
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules.
+
 ### `warlock/memory.py` ✓ done
 
-The shared state bus every agent will read from and write to. Backed by a dict (current state) and a list (append-only audit log).
+The shared state bus every agent reads from and writes to. Renamed from `WarlockMemory` to `Memory`.
 
 ```python
 from datetime import datetime
 
-class WarlockMemory:
+class Memory:
 
     def __init__(self):
         self._store = {}
@@ -50,25 +58,9 @@ class WarlockMemory:
             print(f"[{entry['ts']}] {entry['key']} = {entry['value']}")
 ```
 
-**5 methods:**
-- `write(key, value)` — stores a value + records it in the log
-- `read(key)` — retrieves one value safely, returns None if missing
-- `dump()` — shows full current state (what IS right now)
-- `log()` — returns raw log history (what HAPPENED)
-- `print_log()` — prints log in human-readable form
+### `warlock/agent.py` ✓ done
 
-**Key concepts locked in:**
-- `{}` is a dict — fast lookup by key, represents current state only
-- `[]` is a list — ordered, append-only, nothing lost, audit trail
-- `.get(key, None)` is safer than `[key]` — never crashes on a missing key
-
----
-
-## What we are building next
-
-### `warlock/agent.py` ← next file
-
-Create this file and type this exact code:
+The base class every specialist agent inherits from. Tested and running.
 
 ```python
 class Agent:
@@ -78,38 +70,80 @@ class Agent:
         self.identity = identity
         self.memory = memory
 
+    def run(self, task):
+        raise NotImplementedError("Each specialist agent must implement run()")
+
     def describe(self):
         print(f"Agent: {self.name}")
         print(f"Identity: {self.identity}")
         print(f"Memory: {self.memory.dump()}")
 ```
 
-Then test it immediately in `main.py`:
+**Key concepts unlocked this session:**
+- `Agent` does not import `Memory` — connection happens from the outside in `main.py` (duck typing)
+- `run()` raises `NotImplementedError` — enforces the contract that every specialist must implement it
+- `describe()` is a debug helper, not core logic
+
+### `main.py` ✓ updated
+
+Real test replacing the stub. Creates memory, writes a problem, instantiates an agent, calls describe().
 
 ```python
-from warlock.memory import WarlockMemory
+from warlock.memory import Memory
 from warlock.agent import Agent
 
-m = WarlockMemory()
+m = Memory()
 m.write("problem_statement", "Ingest CSV into BigQuery")
 
 data_engineer = Agent(
     name="data_engineer",
-    identity="I move and shape data. Nothing else.",
+    identity="I am a data engineer with over 30 years of experience. I move data, create data pipelines, build data models. I do pipelines, ingestion, transformation, schemas and data quality checks",
     memory=m
 )
 
 data_engineer.describe()
 ```
 
-**Expected output:**
+**Confirmed output:**
 ```
 Agent: data_engineer
-Identity: I move and shape data. Nothing else.
+Identity: I am a data engineer...
 Memory: {'problem_statement': 'Ingest CSV into BigQuery'}
 ```
 
-Once that runs cleanly, the next step is adding a `run(task)` method to `Agent` that calls the Claude API — this is when the agent becomes live.
+---
+
+## What we are building next
+
+### `warlock/agent.py` — add `run(task)` that calls the Claude API
+
+This is when the agent becomes live. The method needs to:
+
+1. Read `problem_statement` from memory
+2. Build a prompt: combine identity (system prompt) + problem + task
+3. Call the Claude API (`claude-sonnet-4-6`)
+4. Write the response to `memory.agent_outputs[self.name]`
+5. Return the response
+
+The `run()` stub to replace:
+```python
+def run(self, task):
+    raise NotImplementedError("Each specialist agent must implement run()")
+```
+
+Will become:
+```python
+def run(self, task):
+    problem = self.memory.read("problem_statement")
+    # build messages and call Anthropic client
+    # write output to memory
+    # return response
+```
+
+Install the Anthropic SDK first:
+```bash
+uv add anthropic
+```
 
 ---
 
@@ -119,45 +153,23 @@ Once that runs cleanly, the next step is adding a `run(task)` method to `Agent` 
 warlock/
 ├── __init__.py
 ├── memory.py        ✓ done
-├── agent.py         ← next
+├── agent.py         ✓ done — run(task) with Claude API ← next
 └── agents/
     └── __init__.py
-main.py              (stub — update to test agent.py)
+constitution.md      ✓ done
+CLAUDE.md            ✓ updated
+main.py              ✓ updated — test with real agent
 pyproject.toml
 ```
-
----
-
-## What an Agent needs (derived from design)
-
-```
-1. A task        →  what they are supposed to do
-2. A problem     →  the context they walk into (read from memory)
-3. Tools         →  the functions they can call to act
-4. Memory        →  where they read context and write results
-```
-
----
-
-## The 6 specialist agents planned
-
-| Agent | Domain |
-|---|---|
-| `data_engineer` | Pipelines, ingestion, transformation, schemas |
-| `ml_engineer` | Model design, training, evaluation, deployment |
-| `analytics` | EDA, metrics, dashboards, insight generation |
-| `devops_mlops` | Infra, CI/CD, model serving, monitoring |
-| `bi_agent` | SQL, reports, KPIs, data storytelling |
-| `software_dev` | APIs, services, integrations, tooling |
 
 ---
 
 ## Build sequence
 
 - [x] `warlock/memory.py` — shared memory layer
-- [ ] `warlock/agent.py` — base agent class ← **start here next session**
-- [ ] `warlock/agent.py` — add `run(task)` with Claude API call
-- [ ] `warlock/agents/data_engineer.py` — first specialist, tools: read_source, design_schema, generate_pipeline, validate_pipeline
+- [x] `warlock/agent.py` — base Agent class with describe() and run() guardrail
+- [ ] `warlock/agent.py` — add `run(task)` with live Claude API call ← **start here next session**
+- [ ] `warlock/agents/data_engineer.py` — first specialist, inherits Agent, overrides run()
 - [ ] ReAct loop — reason → act → observe → repeat
 - [ ] `warlock/orchestrator.py` — decomposes problems, routes to agents
 - [ ] `warlock/synthesizer.py` — merges all agent outputs into one answer
@@ -167,7 +179,7 @@ pyproject.toml
 ## Principles
 
 - We go slow. One concept at a time.
-- We type, we don't copy.
+- We teach before we write.
 - We test every step before moving on.
 - We understand before we proceed.
 
