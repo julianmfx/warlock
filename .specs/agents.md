@@ -19,7 +19,7 @@ This keeps `.specs/` as the living source of truth for agent design.
 ## Base Agent
 
 **File:** `warlock/agent.py`
-**Status:** done — base class created and tested
+**Status:** done — base class with live Claude API call, tested and confirmed working
 
 Every specialist agent inherits from this class.
 
@@ -28,11 +28,14 @@ Agent
 ├── name        → unique identifier (e.g. "data_engineer")
 ├── identity    → the agent's self-description / system prompt anchor
 ├── memory      → reference to the shared Memory instance
-└── run(task)   → raises NotImplementedError — each specialist must implement
+├── _client     → anthropic.Anthropic() instance (internal)
+├── run(task)   → calls Claude API, writes output to agent_outputs in memory, returns text
 └── describe()  → debug helper: prints name, identity, memory state
 ```
 
-**Next:** add `run(task)` implementation to the base class that calls the Claude API — this is when agents become live.
+**Model:** `claude-haiku-4-5-20251001` — cheapest available on the account
+**Caching:** identity is cached with `cache_control: ephemeral` on every call
+**Next:** create `warlock/agents/data_engineer.py` — first specialist, inherits Agent
 
 ---
 

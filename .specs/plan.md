@@ -68,6 +68,7 @@ The final layer. Responsibilities:
 - [ ] `Orchestrator` class in Python — problem decomposition logic, agent registry, routing engine
 - [x] Shared `Memory` layer — key-value context object agents read/write during a run
 - [x] Base `Agent` class — interface every specialist agent inherits from
+- [x] `run(task)` on base `Agent` — live Claude API call with prompt caching, writes to `agent_outputs`
 
 ### Phase 2 — First Agent
 - [ ] `data_engineer` agent — generates pipelines, SQL transforms, schema designs
