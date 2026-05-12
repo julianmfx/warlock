@@ -26,8 +26,8 @@ We are the oathbreakers. We do not follow the rules of how AI systems are usuall
 ## The Laws
 
 - **One agent, one domain.** No agent crosses into another's territory.
-- **Memory is the bus.** Agents never call each other directly. Shared memory is the only communication channel.
-- **The synthesizer owns truth.** It has final say on the output. No agent overrides it.
+- **Memory is the bus.** Agents collaborate through shared memory and the triangle consensus loop — never through direct calls.
+- **The triangle owns truth.** Orchestrator, Supervisor, and Agents are equal peers. Any corner can reject or push back. The final output is an emergent result of consensus — no single corner owns it. After 3 iterations without consensus, Warlock emits the best-effort output with a confidence score.
 - **Cost discipline.** Use the cheapest model that can do the job. Cache aggressively. Measure token spend per run.
 - **Ship before you design.** The simplest working version ships first. The next phase is designed from what was learned, not from speculation.
 

@@ -19,7 +19,7 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ### `constitution.md` ✓ done
 
-The soul of the project. Three sections: the spirit of Warlock (oathbreaker energy), how we build (teach before writing, learn at the same pace), and the laws (one agent one domain, memory is the bus, synthesizer owns truth, cost discipline).
+The soul of the project. Three sections: the spirit of Warlock (oathbreaker energy), how we build (teach before writing, learn at the same pace), and the laws (one agent one domain, memory is the bus, triangle consensus owns truth, cost discipline).
 
 ### `CLAUDE.md` ✓ done
 
@@ -253,8 +253,9 @@ warlock/agents/data_engineer.py   ← next
 - [x] `warlock/llm.py` — provider-agnostic LLMClient Protocol
 - [x] `warlock/providers/anthropic.py` — AnthropicClient adapter
 - [ ] `warlock/agents/data_engineer.py` — first specialist, inherits Agent ← **start here next session**
-- [ ] `warlock/orchestrator.py` — decomposes problems, routes to agents
-- [ ] `warlock/synthesizer.py` — merges all agent outputs into one answer
+- [ ] `warlock/orchestrator.py` — decomposes problems, routes to agents, participates in consensus
+- [ ] `warlock/supervisor.py` — validates outputs, challenges decompositions, participates in consensus
+- [ ] Triangle consensus loop — any corner can reject or push back, escape valve after 3 iterations
 
 ---
 
