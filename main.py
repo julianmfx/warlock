@@ -13,4 +13,5 @@ data_engineer = Agent(
     memory=m,
 )
 
-print(data_engineer.describe())
+output = data_engineer.run("Design the ingestion pipeline for this problem.")
+print(output)
