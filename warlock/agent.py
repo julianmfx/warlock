@@ -1,27 +1,21 @@
 # agent.py
-import anthropic
+from warlock.llm import LLMClient
 
 
 class Agent:
-    def __init__(self, name, identity, memory):
+    def __init__(self, name, identity, memory, client: LLMClient, model: str):
         self.name = name
         self.identity = identity
         self.memory = memory
-        self._client = anthropic.Anthropic()
+        self._client = client
+        self._model = model
 
     def run(self, task):
         problem = self.memory.read("problem_statement")
 
-        response = self._client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            system=[
-                {
-                    "type": "text",
-                    "text": self.identity,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
+        response = self._client.complete(
+            model=self._model,
+            system=self.identity,
             messages=[
                 {
                     "role": "user",
@@ -30,11 +24,19 @@ class Agent:
             ],
         )
 
-        output = next(block.text for block in response.content if block.type == "text")
-
         agent_outputs = self.memory.read("agent_outputs") or {}
-        agent_outputs[self.name] = output
+        agent_outputs[self.name] = response.text
         self.memory.write("agent_outputs", agent_outputs)
+
+        token_spend = self.memory.read("token_spend") or {}
+        token_spend[self.name] = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "cache_read_tokens": response.usage.cache_read_tokens,
+        }
+        self.memory.write("token_spend", token_spend)
+
+        output = response.text
 
         return output
 
