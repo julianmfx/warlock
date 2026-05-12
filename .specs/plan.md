@@ -94,8 +94,7 @@ The triangle activates on:
 
 ## Build Sequence
 
-### Phase 1 — Core (Start here)
-- [ ] `Orchestrator` class — problem decomposition logic, agent registry, routing engine
+### Phase 1 — Core (done)
 - [x] Shared `Memory` layer — key-value context object agents read/write during a run
 - [x] Base `Agent` class — interface every specialist agent inherits from
 - [x] `run(task)` on base `Agent` — live Claude API call with prompt caching, writes to `agent_outputs`
@@ -145,7 +144,7 @@ This keeps `.specs/` as the living source of truth for the project state.
 
 - **One agent, one domain.** No agent crosses boundaries.
 - **Memory is the bus.** Agents collaborate through shared memory and the triangle consensus loop — never through direct calls.
-- **The synthesizer owns truth.** It has final say on the output.
+- **The triangle owns truth.** Orchestrator, Supervisor, and Agents are equal peers — any corner can reject or push back. The final output is an emergent result of consensus. After 3 iterations without consensus, Warlock emits the best-effort output with a confidence score.
 - **Oathbreaker mindset.** Warlock does not default to what exists. It builds what should exist.
 - **Cost discipline.** Every agent call must justify its token spend. Use the cheapest model that can do the job (e.g. Haiku for routing/classification, Sonnet for reasoning, Opus only when depth demands it). Cache aggressively with prompt caching. Measure cost per run.
 - **Learn by doing.** Ship the simplest working version first, then iterate. Don't design the full system before writing any code. Each phase should produce something runnable that teaches you what the next phase actually needs.

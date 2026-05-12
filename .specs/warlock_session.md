@@ -19,7 +19,11 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ### `constitution.md` ✓ done
 
-The soul of the project. Three sections: the spirit of Warlock (oathbreaker energy), how we build (teach before writing, learn at the same pace), and the laws (one agent one domain, memory is the bus, triangle consensus owns truth, cost discipline).
+The soul of the project. Three sections: the spirit of Warlock (oathbreaker energy), how we build (teach before writing, learn at the same pace), and the laws (one agent one domain, memory is the bus, **triangle owns truth**, cost discipline, ship before you design).
+
+### `README.md` ✓ done
+
+Public-facing entry point. Project overview, stack, run command, triangle architecture diagram, layer table, and current status. Mirrors the canonical architecture in `constitution.md` and `.specs/plan.md`.
 
 ### `CLAUDE.md` ✓ done
 
@@ -27,7 +31,7 @@ Stripped to technical-only content. Points to `constitution.md` for all principl
 
 ### `warlock/memory.py` ✓ done
 
-The shared state bus every agent reads from and writes to.
+The shared state bus every corner of the triangle reads from and writes to.
 
 ```python
 class Memory:
@@ -168,7 +172,6 @@ class Agent:
 **Key concepts:**
 - No `import anthropic` — the agent is fully provider-agnostic
 - `token_spend` is written to memory after every run — cost tracking is live
-- `output = response.text` before `return` is a minor redundancy deferred by the user
 
 ### `main.py` ✓ done — wires AnthropicClient to Agent
 
@@ -219,7 +222,7 @@ class DataEngineerAgent(Agent):
 
 Then update `main.py` to import and instantiate `DataEngineerAgent` instead of the base `Agent` directly.
 
-**Why this matters:** once we have a specialist class, we can register it in the orchestrator by type. The orchestrator will know: "for data pipeline tasks, route to `DataEngineerAgent`."
+**Why this matters:** once we have a specialist class, we can register it in the orchestrator by type. The orchestrator will know: "for data pipeline tasks, route to `DataEngineerAgent`." Building the specialist before the orchestrator means the orchestrator is designed against something real, not speculation.
 
 ---
 
@@ -235,13 +238,14 @@ warlock/
 │   ├── __init__.py     ✓ done
 │   └── anthropic.py    ✓ done — AnthropicClient adapter
 └── agents/
-    └── __init__.py
+    ├── __init__.py     ✓ done
+    └── data_engineer.py   ← next
 constitution.md          ✓ done
+README.md                ✓ done
 CLAUDE.md                ✓ done
 main.py                  ✓ done — wires AnthropicClient to Agent
 pyproject.toml
 list_models.py           (scratch file — can be deleted)
-warlock/agents/data_engineer.py   ← next
 ```
 
 ---
