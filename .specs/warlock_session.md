@@ -7,9 +7,11 @@
 
 A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytics, BI, MLOps, DevOps, and Software Development.
 
-**Core idea:** one orchestrator receives a raw problem, decomposes it, routes to specialist agents, each agent owns one domain, a synthesizer merges all outputs into a unified answer.
+**Core idea:** a triangle of three equal peers — Orchestrator, Supervisor, and Agents — with checks and balances between them. Any corner can reject, push back, or validate another. The final output is an emergent result of consensus, not owned by any single corner.
 
-**Philosophy:** one agent, one domain. Memory is the bus. Agents never talk to each other directly.
+**Escape valve:** after 3 iterations without full consensus, Warlock emits the best-effort output tagged with a confidence score.
+
+**Philosophy:** one agent, one domain. Memory is the bus. Agents collaborate through shared memory and the triangle consensus loop — never through direct calls. No single point of authority.
 
 ---
 

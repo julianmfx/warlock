@@ -11,19 +11,44 @@ Warlock is a multi-agent AI platform operating in the Data & AI domain. It recei
 
 ## Architecture
 
-### Layer 1 — Orchestrator
-`warlock.orchestrator`
+Warlock uses a **triangle architecture** with three equal peers and no single point of authority.
 
-The brain of the system. Responsibilities:
-- Receive the raw problem statement
-- Decompose it into sub-tasks
-- Decide which agents run and in what order
-- Manage agent lifecycle (spawn, timeout, retry)
-- Write decomposition into shared memory
+```
+        Orchestrator
+           /    \
+          /      \
+    Supervisor — Agents
+```
+
+Any corner can reject, push back, or validate another. A decision is confirmed only when all three agree. The final output is an emergent result of consensus — no single corner owns it.
 
 ---
 
-### Layer 2 — Specialist Agents
+### Corner 1 — Orchestrator
+`warlock/orchestrator.py`
+
+Responsibilities:
+- Receive the raw problem statement
+- Decompose it into sub-tasks
+- Decide which agents run and in what order
+- Write decomposition into shared memory
+- Participate in triangle consensus — can reject Supervisor validations or agent outputs
+
+---
+
+### Corner 2 — Supervisor
+`warlock/supervisor.py`
+
+Responsibilities:
+- Validate agent outputs for quality and domain correctness
+- Challenge Orchestrator decompositions that seem wrong or incomplete
+- Flag low-confidence outputs back to the triangle for re-evaluation
+- Participate in triangle consensus — can reject any decision from either corner
+
+---
+
+### Corner 3 — Specialist Agents
+`warlock/agents/`
 
 Each agent owns exactly one domain. No agent crosses into another's territory.
 
@@ -36,44 +61,51 @@ Each agent owns exactly one domain. No agent crosses into another's territory.
 | `bi_agent` | Business Intelligence | SQL, reports, KPIs, data storytelling |
 | `software_dev` | Software Development | APIs, services, integrations, tooling |
 
+Agents can flag uncertainty or disagreement instead of running silently. This triggers the triangle.
+
 ---
 
-### Layer 3 — Shared Memory
+### Shared Memory
+`warlock/memory.py`
 
-A key-value context store that all agents read from and write to during a run. This is how agents communicate without direct coupling.
+A key-value context store that all corners read from and write to. The only communication bus.
 
 | Key | Description |
 |---|---|
 | `problem_statement` | The original raw input |
 | `task_decomposition` | The orchestrator's breakdown of sub-tasks |
 | `agent_outputs` | Results written by each specialist agent |
-| `iteration` | Current loop count (for self-correcting runs) |
+| `consensus` | Current agreement state across the triangle |
+| `iteration` | Current loop count |
+| `confidence` | Confidence score of the final output (0.0–1.0) |
 
 ---
 
-### Layer 4 — Synthesizer
-`warlock.synthesizer`
+### Triangle Activation
 
-The final layer. Responsibilities:
-- Collect all agent outputs from shared memory
-- Resolve conflicts between agents
-- Merge results into a single coherent answer
-- Deliver the new reality
+The triangle activates on:
+- Agent uncertainty or low-confidence output
+- Inter-agent conflict
+- Explicit rejection by any corner
+
+**Escape valve:** after 3 iterations without full consensus, Warlock emits the best-effort output tagged with a confidence score. It does not pretend to have reached full agreement.
 
 ---
 
 ## Build Sequence
 
 ### Phase 1 — Core (Start here)
-- [ ] `Orchestrator` class in Python — problem decomposition logic, agent registry, routing engine
+- [ ] `Orchestrator` class — problem decomposition logic, agent registry, routing engine
 - [x] Shared `Memory` layer — key-value context object agents read/write during a run
 - [x] Base `Agent` class — interface every specialist agent inherits from
 - [x] `run(task)` on base `Agent` — live Claude API call with prompt caching, writes to `agent_outputs`
+- [x] `LLMClient` Protocol — provider-agnostic abstraction layer
+- [x] `AnthropicClient` adapter — first provider implementation
 
 ### Phase 2 — First Agent
 - [ ] `data_engineer` agent — generates pipelines, SQL transforms, schema designs
 - [ ] Agent registration into the orchestrator
-- [ ] End-to-end test: problem → orchestrator → `data_engineer` → memory → synthesizer → output
+- [ ] End-to-end test: problem → orchestrator → `data_engineer` → memory → output
 
 ### Phase 3 — Full Agent Fleet
 - [ ] `ml_engineer` agent
@@ -82,9 +114,11 @@ The final layer. Responsibilities:
 - [ ] `bi_agent` agent
 - [ ] `software_dev` agent
 
-### Phase 4 — Synthesizer
-- [ ] `Synthesizer` class — merge strategy, conflict resolution logic
-- [ ] Multi-agent run: all agents in parallel, synthesizer converges outputs
+### Phase 4 — Triangle
+- [ ] `Supervisor` class — validates outputs, challenges decompositions, participates in consensus
+- [ ] Triangle consensus loop — any corner can reject or push back, decision confirmed on agreement
+- [ ] Escape valve — after 3 iterations emit best-effort output with confidence score
+- [ ] Multi-agent run: all agents in parallel, triangle converges outputs
 
 ### Phase 5 — Platform
 - [ ] CLI interface to submit problems to Warlock
@@ -109,7 +143,7 @@ This keeps `.specs/` as the living source of truth for the project state.
 ## Principles
 
 - **One agent, one domain.** No agent crosses boundaries.
-- **Memory is the bus.** Agents never call each other directly.
+- **Memory is the bus.** Agents collaborate through shared memory and the triangle consensus loop — never through direct calls.
 - **The synthesizer owns truth.** It has final say on the output.
 - **Oathbreaker mindset.** Warlock does not default to what exists. It builds what should exist.
 - **Cost discipline.** Every agent call must justify its token spend. Use the cheapest model that can do the job (e.g. Haiku for routing/classification, Sonnet for reasoning, Opus only when depth demands it). Cache aggressively with prompt caching. Measure cost per run.

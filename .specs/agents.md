@@ -62,6 +62,7 @@ Each specialist agent must:
 2. **Act** within its domain only — no agent touches another's scope
 3. **Write** its output to `agent_outputs[self.name]` in shared memory when done
 4. **Track** token usage per run and write it to memory for cost accounting
+5. **Flag** uncertainty or low-confidence outputs — this triggers the triangle consensus loop rather than silently emitting a weak answer
 
 ---
 
