@@ -121,7 +121,7 @@ This keeps `.specs/` as the living source of truth for the project state.
 
 - Language: Python
 - Agent framework: custom (no LangChain dependency at core)
-- LLM backend: Anthropic Claude API
+- LLM backend: provider-agnostic via `LLMClient` Protocol — `AnthropicClient` ships first
 - Memory: in-process dict → upgrade to Redis or vector store as needed
 - Serving: FastAPI (Phase 5)
 

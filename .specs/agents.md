@@ -19,7 +19,7 @@ This keeps `.specs/` as the living source of truth for agent design.
 ## Base Agent
 
 **File:** `warlock/agent.py`
-**Status:** done — base class with live Claude API call, tested and confirmed working
+**Status:** done — provider-agnostic, live API call confirmed, token tracking confirmed working
 
 Every specialist agent inherits from this class.
 
@@ -28,13 +28,15 @@ Agent
 ├── name        → unique identifier (e.g. "data_engineer")
 ├── identity    → the agent's self-description / system prompt anchor
 ├── memory      → reference to the shared Memory instance
-├── _client     → anthropic.Anthropic() instance (internal)
-├── run(task)   → calls Claude API, writes output to agent_outputs in memory, returns text
+├── _client     → any LLMClient implementation (internal)
+├── _model      → model string passed to the client (e.g. "claude-haiku-4-5-20251001")
+├── run(task)   → calls client.complete(), writes output to agent_outputs, tracks token_spend
 └── describe()  → debug helper: prints name, identity, memory state
 ```
 
-**Model:** `claude-haiku-4-5-20251001` — cheapest available on the account
-**Caching:** identity is cached with `cache_control: ephemeral` on every call
+**Model:** passed at construction — defaults to `claude-haiku-4-5-20251001` in `main.py`
+**Caching:** handled inside the provider adapter — `AnthropicClient` adds `cache_control: ephemeral` on system prompt
+**Token tracking:** `token_spend` dict written to memory after every run (`input_tokens`, `output_tokens`, `cache_read_tokens`)
 **Next:** create `warlock/agents/data_engineer.py` — first specialist, inherits Agent
 
 ---
