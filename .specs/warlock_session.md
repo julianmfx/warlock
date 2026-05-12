@@ -253,7 +253,7 @@ warlock/agents/data_engineer.py   ← next
 - [x] `warlock/llm.py` — provider-agnostic LLMClient Protocol
 - [x] `warlock/providers/anthropic.py` — AnthropicClient adapter
 - [ ] `warlock/agents/data_engineer.py` — first specialist, inherits Agent ← **start here next session**
-- [ ] `warlock/orchestrator.py` — decomposes problems, routes to agents, participates in consensus
+- [ ] `warlock/orchestrator.py` — decomposes problems, holds agent registry, routes tasks, participates in consensus
 - [ ] `warlock/supervisor.py` — validates outputs, challenges decompositions, participates in consensus
 - [ ] Triangle consensus loop — any corner can reject or push back, escape valve after 3 iterations
 

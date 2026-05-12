@@ -102,9 +102,10 @@ The triangle activates on:
 - [x] `LLMClient` Protocol — provider-agnostic abstraction layer
 - [x] `AnthropicClient` adapter — first provider implementation
 
-### Phase 2 — First Agent
+### Phase 2 — First Agent + Orchestrator
 - [ ] `data_engineer` agent — generates pipelines, SQL transforms, schema designs
-- [ ] Agent registration into the orchestrator
+- [ ] `Orchestrator` class — problem decomposition, agent registry, routing engine
+- [ ] Agent registration: `data_engineer` registered into the Orchestrator
 - [ ] End-to-end test: problem → orchestrator → `data_engineer` → memory → output
 
 ### Phase 3 — Full Agent Fleet
