@@ -1,13 +1,10 @@
-# main.py
-
-# imports
+from warlock import orchestrator
 from warlock.agents.data_engineer import DataEngineerAgent
 from warlock.memory import Memory
+from warlock.orchestrator import Orchestrator
 from warlock.providers.anthropic import AnthropicClient
 
 m = Memory()
-m.write("problem_statement", "Ingest CSV into BigQuery")
-
 client = AnthropicClient()
 
 data_engineer = DataEngineerAgent(
@@ -16,5 +13,13 @@ data_engineer = DataEngineerAgent(
     model="claude-haiku-4-5-20251001",
 )
 
-output = data_engineer.run("Design the ingestion pipeline for this problem.")
-print(output)
+orchestrator = Orchestrator(
+    memory=m,
+    client=client,
+    model="claude-haiku-4-5-20251001",
+)
+
+orchestrator.register(data_engineer)
+
+output = orchestrator.run("Ingest CSV into BigQuery")
+m.print_log()

@@ -1,5 +1,6 @@
 # memory.py
 
+import json
 from datetime import datetime
 
 
@@ -32,7 +33,20 @@ class Memory:
     def log(self):
         return self._log
 
-    # prints logs in human readable format
     def print_log(self):
+        separator = "─" * 60
         for entry in self._log:
-            print(f"[{entry['ts']}] {entry['key']} = {entry['value']}")
+            print(f"\n{separator}")
+            print(f"  {entry['ts']}  │  {entry['key']}")
+            print(separator)
+            value = entry["value"]
+            if isinstance(value, dict) and all(
+                isinstance(v, str) for v in value.values()
+            ):
+                for k, v in value.items():
+                    print(f"[{k}]\n{v}")
+            elif isinstance(value, (dict, list)):
+                print(json.dumps(value, indent=2))
+            else:
+                print(value)
+        print(f"\n{separator}")
