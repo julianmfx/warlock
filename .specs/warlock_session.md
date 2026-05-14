@@ -46,6 +46,8 @@ class Memory:
     def print_log(self): ...
 ```
 
+`print_log()` was improved this session: detects dict-of-strings (agent outputs) and renders them as readable markdown instead of escaped JSON. Other values (dicts, lists) are pretty-printed as JSON with separators.
+
 ### `warlock/llm.py` ✓ done — provider contract
 
 The language Warlock uses to talk to any LLM. Three types:
@@ -173,56 +175,118 @@ class Agent:
 - No `import anthropic` — the agent is fully provider-agnostic
 - `token_spend` is written to memory after every run — cost tracking is live
 
-### `main.py` ✓ done — wires AnthropicClient to Agent
+### `warlock/agents/data_engineer.py` ✓ done — first specialist agent
 
 ```python
 from warlock.agent import Agent
+from warlock.llm import LLMClient
+
+ROLE = """..."""  # production-grade system prompt (see file for full text)
+
+class DataEngineerAgent(Agent):
+    def __init__(self, memory, client: LLMClient, model: str):
+        super().__init__(
+            name="data_engineer",
+            identity=ROLE,
+            memory=memory,
+            client=client,
+            model=model,
+        )
+```
+
+**Key concepts:**
+- Model is passed by the caller — the specialist does not hardcode it
+- `ROLE` is a module-level constant — identity text separate from class logic
+- System prompt covers: reasoning approach, proposal format, technical grounding (BigQuery, Snowflake, Databricks, dbt, Kafka, Airflow, OpenTelemetry + more), cost awareness across all dimensions (storage, compute, egress, dev time, on-call, lock-in), anti-sycophancy rule, testing as test coverage not dashboards, GitOps for pipeline code
+
+### `warlock/orchestrator.py` ✓ done — problem decomposition and routing
+
+```python
+import json
+from warlock.llm import LLMClient
+
+ROLE = """..."""  # instructs LLM to return JSON array of {domain, task} objects
+
+class Orchestrator:
+    def __init__(self, memory, client: LLMClient, model: str):
+        self._memory = memory
+        self._client = client
+        self._model = model
+        self._agents = {}
+
+    def register(self, agent): ...     # adds agent to registry by agent.name
+    def decompose(self, problem): ...  # LLM call → list of {"domain": ..., "task": ...}
+    def run(self, problem): ...        # writes problem_statement, decomposes, routes, executes
+```
+
+**Key concepts:**
+- `decompose()` calls the LLM and parses a JSON array — structured output, not free-form
+- Defensive strip removes markdown code fences if the model wraps output in ` ```json ``` `
+- Routes by domain key — only runs agents that are registered
+- Empty decomposition (`[]`) is a silent no-op — known edge case, Supervisor will handle in Phase 4
+
+### `main.py` ✓ done — wires everything together
+
+```python
+from warlock.agents.data_engineer import DataEngineerAgent
 from warlock.memory import Memory
+from warlock.orchestrator import Orchestrator
 from warlock.providers.anthropic import AnthropicClient
 
 m = Memory()
-m.write("problem_statement", "Ingest CSV into BigQuery")
-
 client = AnthropicClient()
 
-data_engineer = Agent(
-    name="data_engineer",
-    identity="I am a data engineer with over 30 years of experience...",
-    memory=m,
-    client=client,
-    model="claude-haiku-4-5-20251001",
-)
+data_engineer = DataEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001")
+orchestrator = Orchestrator(memory=m, client=client, model="claude-haiku-4-5-20251001")
 
-output = data_engineer.run("Design the ingestion pipeline for this problem.")
-print(output)
+orchestrator.register(data_engineer)
+orchestrator.run("Ingest CSV into BigQuery")
+m.print_log()
 ```
 
 ---
 
 ## What we are building next
 
-### `warlock/agents/data_engineer.py` — first specialist agent
+### Phase 3 — Full Agent Fleet
 
-The base `Agent` already does everything. The specialist inherits it and fixes the name, identity, and model. Now it also needs to accept and forward `client`:
+Five more specialist agents, same pattern as `DataEngineerAgent`. Each gets:
+- A module-level `ROLE` constant (production-grade system prompt)
+- A class that inherits `Agent`, fixes name and identity, accepts model from caller
+
+**Start here:** `warlock/agents/ml_engineer.py`
 
 ```python
 from warlock.agent import Agent
 from warlock.llm import LLMClient
 
-class DataEngineerAgent(Agent):
-    def __init__(self, memory, client: LLMClient):
+ROLE = """..."""  # to be designed together
+
+class MLEngineerAgent(Agent):
+    def __init__(self, memory, client: LLMClient, model: str):
         super().__init__(
-            name="data_engineer",
-            identity="I am a data engineer with over 30 years of experience. I move data, create data pipelines, build data models. I do pipelines, ingestion, transformation, schemas and data quality checks.",
+            name="ml_engineer",
+            identity=ROLE,
             memory=memory,
             client=client,
-            model="claude-haiku-4-5-20251001",
+            model=model,
         )
 ```
 
-Then update `main.py` to import and instantiate `DataEngineerAgent` instead of the base `Agent` directly.
+Then register it in `main.py` alongside `DataEngineerAgent` and run a multi-agent problem.
 
-**Why this matters:** once we have a specialist class, we can register it in the orchestrator by type. The orchestrator will know: "for data pipeline tasks, route to `DataEngineerAgent`." Building the specialist before the orchestrator means the orchestrator is designed against something real, not speculation.
+**Remaining agents after `ml_engineer`:**
+- `warlock/agents/analytics.py` — `AnalyticsAgent`
+- `warlock/agents/devops_mlops.py` — `DevOpsMLOpsAgent`
+- `warlock/agents/bi_agent.py` — `BIAgent`
+- `warlock/agents/software_dev.py` — `SoftwareDevAgent`
+
+---
+
+## Known edge cases (Phase 4)
+
+- **Empty decomposition** — orchestrator returns `[]` silently when problem doesn't match any domain. Supervisor will handle this.
+- **Out-of-domain problems** — no feedback to the user when nothing runs. Same fix.
 
 ---
 
@@ -231,35 +295,27 @@ Then update `main.py` to import and instantiate `DataEngineerAgent` instead of t
 ```
 warlock/
 ├── __init__.py
-├── memory.py           ✓ done
-├── agent.py            ✓ done — provider-agnostic, token tracking live
-├── llm.py              ✓ done — LLMClient Protocol, LLMResponse, LLMUsage
+├── memory.py              ✓ done — shared state bus, pretty print_log
+├── agent.py               ✓ done — base Agent, run(), token tracking
+├── llm.py                 ✓ done — LLMClient Protocol, LLMResponse, LLMUsage
+├── orchestrator.py        ✓ done — decompose, register, route, run
 ├── providers/
-│   ├── __init__.py     ✓ done
-│   └── anthropic.py    ✓ done — AnthropicClient adapter
+│   ├── __init__.py        ✓ done
+│   └── anthropic.py       ✓ done — AnthropicClient, cache_control on system prompt
 └── agents/
-    ├── __init__.py     ✓ done
-    └── data_engineer.py   ← next
-constitution.md          ✓ done
-README.md                ✓ done
-CLAUDE.md                ✓ done
-main.py                  ✓ done — wires AnthropicClient to Agent
+    ├── __init__.py        ✓ done
+    ├── data_engineer.py   ✓ done — DataEngineerAgent, production-grade ROLE
+    ├── ml_engineer.py     ← next
+    ├── analytics.py
+    ├── devops_mlops.py
+    ├── bi_agent.py
+    └── software_dev.py
+constitution.md             ✓ done
+README.md                   ✓ done
+CLAUDE.md                   ✓ done
+main.py                     ✓ done
 pyproject.toml
-list_models.py           (scratch file — can be deleted)
 ```
-
----
-
-## Build sequence
-
-- [x] `warlock/memory.py` — shared memory layer
-- [x] `warlock/agent.py` — base Agent class with describe() and run()
-- [x] `warlock/llm.py` — provider-agnostic LLMClient Protocol
-- [x] `warlock/providers/anthropic.py` — AnthropicClient adapter
-- [ ] `warlock/agents/data_engineer.py` — first specialist, inherits Agent ← **start here next session**
-- [ ] `warlock/orchestrator.py` — decomposes problems, holds agent registry, routes tasks, participates in consensus
-- [ ] `warlock/supervisor.py` — validates outputs, challenges decompositions, participates in consensus
-- [ ] Triangle consensus loop — any corner can reject or push back, escape valve after 3 iterations
 
 ---
 

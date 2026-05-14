@@ -37,7 +37,7 @@ Agent
 **Model:** passed at construction — defaults to `claude-haiku-4-5-20251001` in `main.py`
 **Caching:** handled inside the provider adapter — `AnthropicClient` adds `cache_control: ephemeral` on system prompt
 **Token tracking:** `token_spend` dict written to memory after every run (`input_tokens`, `output_tokens`, `cache_read_tokens`)
-**Next:** create `warlock/agents/data_engineer.py` — first specialist, inherits Agent
+**Next:** create remaining specialist agents — `ml_engineer`, `analytics`, `devops_mlops`, `bi_agent`, `software_dev`
 
 ---
 
@@ -45,7 +45,7 @@ Agent
 
 | Agent | File | Domain | Status |
 |---|---|---|---|
-| `data_engineer` | `warlock/agents/data_engineer.py` | Pipelines, ingestion, transformation, schemas | planned |
+| `data_engineer` | `warlock/agents/data_engineer.py` | Pipelines, ingestion, transformation, schemas | done |
 | `ml_engineer` | `warlock/agents/ml_engineer.py` | Model design, training, evaluation, deployment | planned |
 | `analytics` | `warlock/agents/analytics.py` | EDA, metrics, dashboards, insight generation | planned |
 | `devops_mlops` | `warlock/agents/devops_mlops.py` | Infra, CI/CD, model serving, monitoring | planned |

@@ -101,11 +101,11 @@ The triangle activates on:
 - [x] `LLMClient` Protocol — provider-agnostic abstraction layer
 - [x] `AnthropicClient` adapter — first provider implementation
 
-### Phase 2 — First Agent + Orchestrator
-- [ ] `data_engineer` agent — generates pipelines, SQL transforms, schema designs
-- [ ] `Orchestrator` class — problem decomposition, agent registry, routing engine
-- [ ] Agent registration: `data_engineer` registered into the Orchestrator
-- [ ] End-to-end test: problem → orchestrator → `data_engineer` → memory → output
+### Phase 2 — First Agent + Orchestrator (done)
+- [x] `data_engineer` agent — production-grade system prompt, model passed by caller
+- [x] `Orchestrator` class — problem decomposition via LLM, agent registry, routing engine
+- [x] Agent registration: `data_engineer` registered into the Orchestrator
+- [x] End-to-end test: problem → orchestrator → `data_engineer` → memory → output
 
 ### Phase 3 — Full Agent Fleet
 - [ ] `ml_engineer` agent
@@ -122,8 +122,16 @@ The triangle activates on:
 
 ### Phase 5 — Platform
 - [ ] CLI interface to submit problems to Warlock
+- [ ] Conversational loop — agents can emit clarifying questions through memory, orchestrator surfaces them to the user, waits for input, re-routes with the answer
+- [ ] FastAPI web UI — local interface to submit problems, see agent outputs rendered, follow the conversation
+- [ ] Docker — containerized local run, no Python or uv setup required
 - [ ] Logging and observability per agent
 - [ ] Iterative runs (agents can loop until output is accepted)
+
+### Phase 6 — Deployment
+- [ ] EC2 deployment — production server running Warlock on demand
+- [ ] NAS / local notebook deployment — always-on local server, triggered when needed
+- [ ] Environment config — API keys, model selection, and memory backend configurable per deployment target
 
 ---
 
