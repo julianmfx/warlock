@@ -45,4 +45,4 @@ If consensus is not reached after 3 iterations, Warlock emits the best-effort ou
 
 ## Status
 
-Phase 1 in progress. Core layer (memory, base agent, LLM abstraction) is live. Specialist agents, Orchestrator, and Supervisor are next.
+Phase 2 complete. Core layer (memory, base Agent, `LLMClient` Protocol, `AnthropicClient`), Orchestrator with problem decomposition and routing, and first specialist (`DataEngineerAgent`) are live and running end-to-end. Next: build out the remaining five specialist agents (`ml_engineer`, `analytics`, `devops_mlops`, `bi_agent`, `software_dev`), then the Supervisor and triangle consensus loop.
