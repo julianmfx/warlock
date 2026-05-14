@@ -58,7 +58,7 @@ This file is the single source of truth for resuming work. Rewrite it with:
 
 **What Warlock is** — keep this section unchanged unless the vision changed
 
-**What we have built so far** — full list of every file that exists, with a one-line description and the key methods/classes in it. Include actual code snippets for the most recent additions.
+**What we have built so far** — full list of every file that exists. **Critical rule: for files that existed before this session, copy their description verbatim from the previous `warlock_session.md` — do not summarize, compress, or reword them.** Only write new descriptions for files that were added or significantly changed this session. Include actual code snippets for the most recent additions.
 
 **What we were about to build next** — the exact next step: filename, class/function name, and the code we were about to type. Make it specific enough that a cold session can start immediately without re-derivation.
 
