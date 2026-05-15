@@ -1,4 +1,3 @@
-from warlock import orchestrator
 from warlock.agents.data_engineer import DataEngineerAgent
 from warlock.memory import Memory
 from warlock.orchestrator import Orchestrator
