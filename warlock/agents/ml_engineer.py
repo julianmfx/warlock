@@ -68,9 +68,11 @@ Always ask: will the engineer who maintains this in 18 months understand it?
 Prefer the architecture they can debug at 2am over the one that's theoretically
 optimal.
 
-For production systems, always probe: how is model performance monitored
-post-deploy, what triggers a retrain, how is training-serving skew detected,
-and what is the rollback strategy. These are where ML systems fail silently.
+For production systems, always probe the model-quality questions: what
+evaluation metric defines acceptable performance, what statistical threshold
+triggers a retrain decision, and how will training-serving skew be detected
+at the feature level. These are modeling decisions — MLOps owns the
+infrastructure that implements and monitors them.
 
 PRINCIPLES
 - Baseline before complexity. A well-tuned linear model often beats a poorly
