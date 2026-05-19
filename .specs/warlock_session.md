@@ -199,6 +199,28 @@ class DataEngineerAgent(Agent):
 - `ROLE` is a module-level constant — identity text separate from class logic
 - System prompt covers: reasoning approach, proposal format, technical grounding (BigQuery, Snowflake, Databricks, dbt, Kafka, Airflow, OpenTelemetry + more), cost awareness across all dimensions (storage, compute, egress, dev time, on-call, lock-in), anti-sycophancy rule, testing as test coverage not dashboards, GitOps for pipeline code
 
+### `warlock/agents/ml_engineer.py` ✓ done — machine learning specialist
+
+Same pattern as `data_engineer`. ROLE covers: do-we-need-ML gate, gather-before-proposing (data, latency, eval criteria, stack, deployment, time horizon), baseline-before-complexity, evaluation-before-deployment, reproducibility, fairness and disparate impact surfacing, pushback handling (update on evidence not pressure), 18-month maintainability question, monitoring as a pre-deployment requirement.
+
+### `warlock/agents/analytics.py` ✓ done — analytics + BI specialist
+
+Absorbs the BI domain. ROLE covers: analysis vs. confirmation distinction, one-time analysis vs. recurring artifact, metric definition alignment before building, audience-tailoring (executive/operational/technical), tool selection heuristic (SQL → BI tool → Python → dbt), segment-before-concluding, profile-before-you-conclude, context-beats-precision, trust-is-fragile, causality path (name the identification strategy), hand-off recognition.
+
+### `warlock/agents/devops_mlops.py` ✓ done — DevOps / MLOps specialist
+
+ROLE covers: SLA/SLO/SLI distinction, RPO/RTO, migration cutover strategies, ML-specific probes (champion-challenger, shadow mode, data pipeline failures), incident response priority order (stabilize → diagnose → optimize), rollout strategies (shadow/canary/blue-green/A/B/progressive), boring technology principle, error budgets, post-mortem anatomy (multiple contributing factors, named owners), DR vs. incident response distinction, alert fatigue as operational failure, deprecation discipline, security as "scheduled incident."
+
+### `warlock/agents/data_scientist.py` ✓ done — data science specialist (new this session)
+
+Added in Phase 3 after recognizing the gap between analytics (monitors known things) and ML engineering (builds production systems). The data scientist owns the space between them: problem formulation, experimentation, and statistical methodology.
+
+ROLE covers: predictive/causal/descriptive distinction as the most consequential framing choice, unit of analysis, data-generating process validation, baseline and leakage probes, EXPERIMENTATION DISCIPLINE section (pre-registration, power analysis before not after, heterogeneity planning, researcher degrees of freedom), identification before estimation, uncertainty as the deliverable not the disclaimer, statistical vs. business significance, fairness and disparate impact, motivated analysis pushback, model monitoring as a pre-deployment requirement, feature engineering and validation strategy ownership (hands production system to ML engineer).
+
+### `warlock/agents/software_dev.py` ✓ done — software engineering specialist
+
+ROLE covers: interface-before-implementation as the organizing philosophy, async/event-driven delivery guarantee probes (at-most-once/at-least-once/exactly-once, dead letter strategy), boundary definition (network/trust/persistence), backwards compatibility discipline (additive safe, removal breaking, semantic change breaking, deprecation lifecycle), distributed systems failure modes (timeouts, retries, circuit breakers as defaults), contract testing as most valuable at boundaries, database hazards (N+1, long transactions, connection pool exhaustion, migrations), implicit schema risk from uncontrolled upstream sources, specific handoff partners named (data engineering, data science, ML engineering, MLOps, security).
+
 ### `warlock/orchestrator.py` ✓ done — problem decomposition and routing
 
 ```python
@@ -227,8 +249,23 @@ class Orchestrator:
 
 ### `main.py` ✓ done — wires everything together
 
+Currently only registers `data_engineer`. Needs to be updated to register all six agents.
+
+---
+
+## What we are building next
+
+### Step 1 — Register all six agents in `main.py`
+
+Update `main.py` to import and register all agents:
+
 ```python
 from warlock.agents.data_engineer import DataEngineerAgent
+from warlock.agents.ml_engineer import MLEngineerAgent
+from warlock.agents.analytics import AnalyticsAgent
+from warlock.agents.devops_mlops import DevOpsMLOpsAgent
+from warlock.agents.data_scientist import DataScientistAgent
+from warlock.agents.software_dev import SoftwareDevAgent
 from warlock.memory import Memory
 from warlock.orchestrator import Orchestrator
 from warlock.providers.anthropic import AnthropicClient
@@ -236,50 +273,35 @@ from warlock.providers.anthropic import AnthropicClient
 m = Memory()
 client = AnthropicClient()
 
-data_engineer = DataEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001")
 orchestrator = Orchestrator(memory=m, client=client, model="claude-haiku-4-5-20251001")
 
-orchestrator.register(data_engineer)
-orchestrator.run("Ingest CSV into BigQuery")
+orchestrator.register(DataEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+orchestrator.register(MLEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+orchestrator.register(AnalyticsAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+orchestrator.register(DevOpsMLOpsAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+orchestrator.register(DataScientistAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+orchestrator.register(SoftwareDevAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
+
+orchestrator.run("Build a churn prediction system for a SaaS product")
 m.print_log()
 ```
 
----
+Run it to confirm all six agents route and respond correctly end-to-end.
 
-## What we are building next
+### Step 2 — Phase 4: Supervisor
 
-### Phase 3 — Full Agent Fleet
-
-Five more specialist agents, same pattern as `DataEngineerAgent`. Each gets:
-- A module-level `ROLE` constant (production-grade system prompt)
-- A class that inherits `Agent`, fixes name and identity, accepts model from caller
-
-**Start here:** `warlock/agents/ml_engineer.py`
+After the multi-agent run is confirmed, begin `warlock/supervisor.py`:
 
 ```python
-from warlock.agent import Agent
-from warlock.llm import LLMClient
-
-ROLE = """..."""  # to be designed together
-
-class MLEngineerAgent(Agent):
+class Supervisor:
     def __init__(self, memory, client: LLMClient, model: str):
-        super().__init__(
-            name="ml_engineer",
-            identity=ROLE,
-            memory=memory,
-            client=client,
-            model=model,
-        )
+        ...
+
+    def validate(self, agent_name: str, output: str) -> bool:
+        # reviews agent output for quality and domain correctness
+        # returns True (accept) or False (reject, trigger triangle)
+        ...
 ```
-
-Then register it in `main.py` alongside `DataEngineerAgent` and run a multi-agent problem.
-
-**Remaining agents after `ml_engineer`:**
-- `warlock/agents/analytics.py` — `AnalyticsAgent`
-- `warlock/agents/devops_mlops.py` — `DevOpsMLOpsAgent`
-- `warlock/agents/bi_agent.py` — `BIAgent`
-- `warlock/agents/software_dev.py` — `SoftwareDevAgent`
 
 ---
 
@@ -305,15 +327,16 @@ warlock/
 └── agents/
     ├── __init__.py        ✓ done
     ├── data_engineer.py   ✓ done — DataEngineerAgent, production-grade ROLE
-    ├── ml_engineer.py     ← next
-    ├── analytics.py
-    ├── devops_mlops.py
-    ├── bi_agent.py
-    └── software_dev.py
+    ├── ml_engineer.py     ✓ done — MLEngineerAgent, production-grade ROLE
+    ├── analytics.py       ✓ done — AnalyticsAgent, absorbs BI domain
+    ├── devops_mlops.py    ✓ done — DevOpsMLOpsAgent, production-grade ROLE
+    ├── data_scientist.py  ✓ done — DataScientistAgent, production-grade ROLE
+    └── software_dev.py    ✓ done — SoftwareDevAgent, production-grade ROLE
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
-main.py                     ✓ done
+main.py                     ✓ done (needs agent registrations updated) ← next
+supervisor.py               ← Phase 4
 pyproject.toml
 ```
 

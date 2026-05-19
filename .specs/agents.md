@@ -37,7 +37,7 @@ Agent
 **Model:** passed at construction — defaults to `claude-haiku-4-5-20251001` in `main.py`
 **Caching:** handled inside the provider adapter — `AnthropicClient` adds `cache_control: ephemeral` on system prompt
 **Token tracking:** `token_spend` dict written to memory after every run (`input_tokens`, `output_tokens`, `cache_read_tokens`)
-**Next:** create remaining specialist agents — `ml_engineer`, `analytics`, `devops_mlops`, `bi_agent`, `software_dev`
+**Next:** register all six specialist agents in `main.py` and the Orchestrator, then begin Phase 4 — Supervisor and triangle consensus loop
 
 ---
 
@@ -46,11 +46,13 @@ Agent
 | Agent | File | Domain | Status |
 |---|---|---|---|
 | `data_engineer` | `warlock/agents/data_engineer.py` | Pipelines, ingestion, transformation, schemas | done |
-| `ml_engineer` | `warlock/agents/ml_engineer.py` | Model design, training, evaluation, deployment | planned |
-| `analytics` | `warlock/agents/analytics.py` | EDA, metrics, dashboards, insight generation | planned |
-| `devops_mlops` | `warlock/agents/devops_mlops.py` | Infra, CI/CD, model serving, monitoring | planned |
-| `bi_agent` | `warlock/agents/bi_agent.py` | SQL, reports, KPIs, data storytelling | planned |
-| `software_dev` | `warlock/agents/software_dev.py` | APIs, services, integrations, tooling | planned |
+| `ml_engineer` | `warlock/agents/ml_engineer.py` | Model design, training, evaluation, deployment | done |
+| `analytics` | `warlock/agents/analytics.py` | EDA, metrics, dashboards, KPIs, recurring reports, insight generation | done |
+| `devops_mlops` | `warlock/agents/devops_mlops.py` | Infra, CI/CD, model serving, monitoring | done |
+| `data_scientist` | `warlock/agents/data_scientist.py` | Problem formulation, experimentation, causal inference, statistical methodology | done |
+| `software_dev` | `warlock/agents/software_dev.py` | APIs, services, integrations, tooling | done |
+
+Note: `bi_agent` was removed — its domain (KPIs, dashboards, recurring reports) was merged into `analytics`.
 
 ---
 
@@ -90,10 +92,11 @@ Each specialist agent must:
 - `write_ci_config` — generate a CI/CD pipeline config
 - `write_monitoring_config` — propose alerting and observability setup
 
-### `bi_agent`
-- `write_sql` — produce a SQL query for a reporting question
-- `design_report` — describe a report structure and data sources
-- `define_kpis` — propose KPI definitions given a business context
+### `data_scientist`
+- `formulate_problem` — restate a fuzzy question as a precise predictive/causal/descriptive problem
+- `design_experiment` — produce an experiment plan with power analysis and decision rule
+- `run_causal_analysis` — apply appropriate identification strategy for a causal question
+- `evaluate_model` — assess model outputs against the metric that matches the decision
 
 ### `software_dev`
 - `design_api` — propose an API spec (endpoints, payloads, auth)

@@ -56,10 +56,12 @@ Each agent owns exactly one domain. No agent crosses into another's territory.
 |---|---|---|
 | `data_engineer` | Data Engineering | Pipelines, ingestion, transformation, warehousing |
 | `ml_engineer` | Machine Learning | Model design, training, evaluation, deployment |
-| `analytics` | Analytics | EDA, metrics, dashboards, insight generation |
+| `analytics` | Analytics | EDA, metrics, dashboards, KPIs, recurring reports, insight generation |
 | `devops_mlops` | DevOps / MLOps | Infra, CI/CD, model serving, monitoring |
-| `bi_agent` | Business Intelligence | SQL, reports, KPIs, data storytelling |
+| `data_scientist` | Data Science | Problem formulation, experimentation, statistical inference, causal analysis |
 | `software_dev` | Software Development | APIs, services, integrations, tooling |
+
+Note: `bi_agent` was merged into `analytics` — the BI domain (KPIs, dashboards, recurring reports) is now owned by the analytics agent, which handles both discovery and monitoring.
 
 Agents can flag uncertainty or disagreement instead of running silently. This triggers the triangle.
 
@@ -107,12 +109,13 @@ The triangle activates on:
 - [x] Agent registration: `data_engineer` registered into the Orchestrator
 - [x] End-to-end test: problem → orchestrator → `data_engineer` → memory → output
 
-### Phase 3 — Full Agent Fleet
-- [ ] `ml_engineer` agent
-- [ ] `analytics` agent
-- [ ] `devops_mlops` agent
-- [ ] `bi_agent` agent
-- [ ] `software_dev` agent
+### Phase 3 — Full Agent Fleet (done)
+- [x] `ml_engineer` agent — production-grade ROLE with experimentation discipline, pushback handling, ethical risk surfacing
+- [x] `analytics` agent — absorbs BI domain; owns EDA, metrics, dashboards, KPIs, and recurring reports
+- [x] `devops_mlops` agent — incident response, DR vs. incident distinction, SLA/SLO/SLI, error budgets, boring technology principle
+- [x] `data_scientist` agent — added this session; owns problem formulation, causal inference, experimentation, statistical methodology
+- [x] `software_dev` agent — interface-first philosophy, contract testing, distributed systems failure modes, DB hazards
+- [x] `bi_agent` removed — domain merged into `analytics`
 
 ### Phase 4 — Triangle
 - [ ] `Supervisor` class — validates outputs, challenges decompositions, participates in consensus
