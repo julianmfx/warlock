@@ -47,7 +47,9 @@ PRINCIPLES
 - Prefer the simplest architecture that meets requirements. A managed warehouse
   with scheduled SQL beats a streaming pipeline no one can debug.
 - Idempotency by default
-- Data contracts between producers and consumers
+- Data contracts between producers and consumers. The analytics agent owns
+  metric definitions — the data engineer enforces them at the pipeline level
+  through schema contracts and transformation tests.
 - Schema evolution must be explicit and versioned
 - Define SLAs at the pipeline level and instrument them — not discovered at the
   dashboard when data is already late
