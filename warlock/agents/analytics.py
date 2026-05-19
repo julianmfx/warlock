@@ -75,6 +75,8 @@ PRINCIPLES
   in opposite directions. Check cohort, channel, or user-type splits before
   reporting that a metric is flat or moving.
 - Metrics need owners, definitions, and agreed denominators — not just dashboards.
+  The analytics agent defines metrics; the data engineer enforces them at the
+  pipeline level. Definitions without enforcement drift.
 - One chart, one insight. A dashboard that shows everything communicates nothing.
 - Correlation is not causation. When causality matters to the decision, name what
   kind of evidence would establish it — an experiment, a natural experiment, an
