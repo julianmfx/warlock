@@ -10,7 +10,8 @@ Run this at the end of every coding session. It reviews what was built, reconcil
 ## Steps
 
 ### 1. Read the current specs
-Read all three files in `.specs/`:
+Read all four files:
+- `CLAUDE.md`
 - `.specs/plan.md`
 - `.specs/agents.md`
 - `.specs/warlock_session.md`
@@ -43,17 +44,23 @@ Use the Agent tool with this prompt:
 Run `git diff HEAD~1 HEAD --stat` and `git log --oneline -10` to understand what was committed.
 If there are uncommitted changes, run `git diff --stat` and `git status` as well.
 
-### 4. Update `.specs/plan.md`
+### 4. Update `CLAUDE.md`
+- Sync the domain list under Architecture to match the actual agents in `warlock/agents/`
+- Update the core principles if any changed (e.g. synthesizer → triangle)
+- Update the build sequence note if the current phase changed
+- Do not add commentary — CLAUDE.md is a technical reference, keep it concise
+
+### 5. Update `.specs/plan.md`
 - Mark completed phase steps with `[x]`
 - If any design decision changed during the session, update the relevant section
 - Do not add speculative steps — only reflect what actually shipped or was explicitly decided
 
-### 5. Update `.specs/agents.md`
+### 6. Update `.specs/agents.md`
 - Update agent status column for any agent that was created, modified, or tested
 - If new tools were added to an agent, add them to the tools section
 - If the base Agent interface changed, update the interface section
 
-### 6. Rewrite `.specs/warlock_session.md`
+### 7. Rewrite `.specs/warlock_session.md`
 This file is the single source of truth for resuming work. Rewrite it with:
 
 **What Warlock is** — keep this section unchanged unless the vision changed
@@ -66,7 +73,7 @@ This file is the single source of truth for resuming work. Rewrite it with:
 
 **Principles** — keep as-is unless something changed
 
-### 7. Print a session summary
+### 8. Print a session summary
 After updating all files, output a short summary to the conversation:
 
 ```
@@ -76,8 +83,9 @@ Built:
 - <bullet per thing shipped>
 
 Specs updated:
-- plan.md   — <what changed>
-- agents.md — <what changed>
+- CLAUDE.md  — <what changed, or "no changes needed">
+- plan.md    — <what changed>
+- agents.md  — <what changed>
 - warlock_session.md — <what changed>
 
 Removed from warlock_session.md:
@@ -115,11 +123,12 @@ That's it. Warlock now dreams.
 User says: `/dream`
 
 Actions:
-1. Read `.specs/plan.md`, `.specs/agents.md`, `.specs/warlock_session.md`
+1. Read `CLAUDE.md`, `.specs/plan.md`, `.specs/agents.md`, `.specs/warlock_session.md`
 2. Run `git log --oneline -10` and `git diff HEAD~1 HEAD --stat`
-3. Mark any completed steps `[x]` in `plan.md`
-4. Update agent statuses in `agents.md`
-5. Rewrite `warlock_session.md` with current state and exact next step
+3. Update `CLAUDE.md` if domain list, principles, or build sequence are out of sync
+4. Mark any completed steps `[x]` in `plan.md`
+5. Update agent statuses in `agents.md`
+6. Rewrite `warlock_session.md` with current state and exact next step
 
 Result:
 ```
@@ -129,8 +138,9 @@ Built:
 - warlock/memory.py — WarlockMemory class with dict/list backing
 
 Specs updated:
-- plan.md   — Memory marked [x] done
-- agents.md — Base Agent status updated to "next"
+- CLAUDE.md  — no changes needed
+- plan.md    — Memory marked [x] done
+- agents.md  — Base Agent status updated to "next"
 - warlock_session.md — Full rewrite with memory.py code and next step pinned
 
 Removed from warlock_session.md:
