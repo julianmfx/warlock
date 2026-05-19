@@ -15,6 +15,16 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ---
 
+## This session
+
+Cross-agent handoff polish in ROLE prompts — no new files, no architectural change:
+- `analytics.py` + `data_engineer.py` — metric ownership made explicit: analytics defines, data engineer enforces at the pipeline level.
+- `ml_engineer.py` + `devops_mlops.py` — production monitoring probe split into two halves: ML engineer owns model-quality thresholds, MLOps owns the infrastructure that enforces them.
+
+These refinements are uncommitted at session close. Next session still starts on registering all six agents in `main.py`.
+
+---
+
 ## What we have built so far
 
 ### `constitution.md` ✓ done
