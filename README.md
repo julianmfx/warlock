@@ -43,6 +43,17 @@ If consensus is not reached after 3 iterations, Warlock emits the best-effort ou
 | LLM contract | `warlock/llm.py` | Provider-agnostic `LLMClient` Protocol |
 | Provider adapter | `warlock/providers/anthropic.py` | Anthropic SDK, prompt caching, token tracking |
 
+## Agents
+
+| Agent | Domain |
+|---|---|
+| `data_engineer` | Pipelines, ingestion, transformation, warehousing |
+| `ml_engineer` | Model design, training, evaluation, deployment |
+| `analytics` | EDA, metrics, dashboards, KPIs, recurring reports |
+| `devops_mlops` | Infra, CI/CD, model serving, monitoring |
+| `data_scientist` | Problem formulation, experimentation, causal inference |
+| `software_dev` | APIs, services, integrations, tooling |
+
 ## Status
 
-Phase 2 complete. Core layer (memory, base Agent, `LLMClient` Protocol, `AnthropicClient`), Orchestrator with problem decomposition and routing, and first specialist (`DataEngineerAgent`) are live and running end-to-end. Next: build out the remaining five specialist agents (`ml_engineer`, `analytics`, `devops_mlops`, `bi_agent`, `software_dev`), then the Supervisor and triangle consensus loop.
+Phase 3 complete. Full agent fleet is live — six specialist agents with production-grade system prompts, clean domain boundaries, and explicit handoff contracts between them. Next: register all agents in `main.py`, then Phase 4 — Supervisor and triangle consensus loop.
