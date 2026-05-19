@@ -30,15 +30,15 @@ No test runner or linter is configured yet. When adding them, prefer `pytest` an
 Four layers, built in order:
 
 1. **Orchestrator** (`warlock/orchestrator.py`) — decomposes the problem, routes to agents, manages lifecycle
-2. **Specialist Agents** (`warlock/agents/`) — one class per domain, each inherits from a base `Agent`; domains: `data_engineer`, `ml_engineer`, `analytics`, `devops_mlops`, `bi_agent`, `software_dev`
+2. **Specialist Agents** (`warlock/agents/`) — one class per domain, each inherits from a base `Agent`; domains: `data_engineer`, `ml_engineer`, `analytics`, `devops_mlops`, `data_scientist`, `software_dev`
 3. **Shared Memory** (`warlock/memory.py`) — a key-value store (`problem_statement`, `task_decomposition`, `agent_outputs`, `iteration`); the only way agents share state
-4. **Synthesizer** (`warlock/synthesizer.py`) — collects all agent outputs, resolves conflicts, produces the final answer
+4. **Supervisor** (`warlock/supervisor.py`) — validates agent outputs, challenges decompositions, participates in triangle consensus (Phase 4)
 
 ## Core principles (from plan.md)
 
 - **One agent, one domain.** No agent crosses boundaries.
 - **Memory is the bus.** Agents never call each other directly.
-- **The synthesizer owns truth.** It has final say on output.
+- **The triangle owns truth.** Orchestrator, Supervisor, and Agents are equal peers — any corner can reject or push back.
 - **Cost discipline.** Default to `claude-haiku-4-5` for routing/classification tasks, `claude-sonnet-4-6` for reasoning, `claude-opus-4-7` only when depth demands it. Always use prompt caching (`cache_control`) on large shared context (system prompts, memory dumps). Track token spend per agent run.
 - **Learn by doing.** Ship the simplest working version at each phase before designing the next. Every phase must produce something runnable.
 - Build what *should* exist, not what already does.
