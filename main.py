@@ -7,19 +7,20 @@ from warlock.agents.software_dev import SoftwareDevAgent
 from warlock.memory import Memory
 from warlock.orchestrator import Orchestrator
 from warlock.providers.anthropic import AnthropicClient
+from warlock.supervisor import Supervisor
 
 m = Memory()
 client = AnthropicClient()
 
-# Set up orchestrator
+supervisor = Supervisor(memory=m, client=client, model="claude-haiku-4-5-20251001")
+
 orchestrator = Orchestrator(
     memory=m,
     client=client,
     model="claude-haiku-4-5-20251001",
+    supervisor=supervisor,
 )
 
-
-# Register agents
 orchestrator.register(
     AnalyticsAgent(memory=m, client=client, model="claude-haiku-4-5-20251001")
 )

@@ -17,11 +17,12 @@ No explanation. No markdown. No code fences. No extra keys. Only the JSON array.
 
 
 class Orchestrator:
-    def __init__(self, memory, client: LLMClient, model: str):
+    def __init__(self, memory, client: LLMClient, model: str, supervisor=None):
         self._memory = memory
         self._client = client
         self._model = model
         self._agents = {}
+        self._supervisor = supervisor
 
     def register(self, agent):
         self._agents[agent.name] = agent
@@ -54,3 +55,7 @@ class Orchestrator:
                 timing = self._memory.read("timing") or {}
                 timing[item["domain"]] = elapsed
                 self._memory.write("timing", timing)
+
+                if self._supervisor:
+                    output = self._memory.read("agent_outputs")[item["domain"]]
+                    self._supervisor.validate(item["domain"], item["task"], output)
