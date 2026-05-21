@@ -52,6 +52,17 @@ class Supervisor:
             ],
         )
 
+        existing = self._memory.read("token_spend") or {}
+        supervisor_spend = existing.get(
+            "supervisor",
+            {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0},
+        )
+        supervisor_spend["input_tokens"] += response.usage.input_tokens
+        supervisor_spend["output_tokens"] += response.usage.output_tokens
+        supervisor_spend["cache_read_tokens"] += response.usage.cache_read_tokens
+        existing["supervisor"] = supervisor_spend
+        self._memory.write("token_spend", existing)
+
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0]
