@@ -37,7 +37,7 @@ Agent
 **Model:** passed at construction — defaults to `claude-haiku-4-5-20251001` in `main.py`
 **Caching:** handled inside the provider adapter — `AnthropicClient` adds `cache_control: ephemeral` on system prompt
 **Token tracking:** `token_spend` dict written to memory after every run (`input_tokens`, `output_tokens`, `cache_read_tokens`)
-**Next:** register all six specialist agents in `main.py` and the Orchestrator, then begin Phase 4 — Supervisor and triangle consensus loop
+**Next:** wire the supervisor's accept/reject result into a retry loop in `Orchestrator.run()`, then add the escape valve (3-iteration cap + confidence score) and parallel multi-agent execution.
 
 ---
 

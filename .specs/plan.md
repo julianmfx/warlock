@@ -118,10 +118,17 @@ The triangle activates on:
 - [x] `bi_agent` removed — domain merged into `analytics`
 
 ### Phase 4 — Triangle
-- [ ] `Supervisor` class — validates outputs, challenges decompositions, participates in consensus
+- [x] `Supervisor` class — validates outputs, challenges decompositions, participates in consensus
 - [ ] Triangle consensus loop — any corner can reject or push back, decision confirmed on agreement
 - [ ] Escape valve — after 3 iterations emit best-effort output with confidence score
 - [ ] Multi-agent run: all agents in parallel, triangle converges outputs
+
+#### Known issues (fix before Step 2)
+
+- **P0 — Validation result is discarded:** `orchestrator.py` calls `self._supervisor.validate()` but throws away the return value. Rejections are stored in memory but the orchestrator takes no action. Fix: check the bool and retry the agent — this is the core of the retry loop.
+- **P1 — `cache_read_tokens` may be `None`:** `supervisor.py` and `orchestrator.py` use `+=` on `cache_read_tokens`. The Anthropic API returns `None` (not `0`) when there are no cache hits. Guard against `None` before accumulating.
+- **P2 — Orchestrator token tracking overwrites instead of accumulates:** `token_spend["orchestrator"] = {...}` is a plain assignment. If `decompose()` were called more than once, earlier tokens would vanish. Should accumulate with `+=` to match the supervisor pattern.
+- **P3 — Supervisor is non-deterministic:** Acceptance rate varied between runs (3/6 → 5/6 rejected) with no code change. Fix: set `temperature=0` on supervisor calls; tighten the ROLE prompt acceptance criteria.
 
 ### Phase 5 — Platform
 - [ ] CLI interface to submit problems to Warlock

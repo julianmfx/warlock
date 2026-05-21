@@ -45,4 +45,4 @@ Four layers, built in order:
 
 ## Build sequence
 
-See `plan.md` for the phased checklist. Start with Phase 1: `Orchestrator`, `Memory`, and base `Agent` class.
+See `plan.md` for the phased checklist. Phases 1–3 are complete. Phase 4 is in progress: `Supervisor` ships (validates outputs, tracks tokens/timing); the consensus retry loop, escape valve, and parallel multi-agent run are still open. Known P0–P3 issues are tracked in `plan.md` under Phase 4.

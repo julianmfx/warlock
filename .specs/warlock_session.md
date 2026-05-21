@@ -17,11 +17,15 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-Cross-agent handoff polish in ROLE prompts — no new files, no architectural change:
-- `analytics.py` + `data_engineer.py` — metric ownership made explicit: analytics defines, data engineer enforces at the pipeline level.
-- `ml_engineer.py` + `devops_mlops.py` — production monitoring probe split into two halves: ML engineer owns model-quality thresholds, MLOps owns the infrastructure that enforces them.
+Phase 4 kicked off. We shipped the first version of the Supervisor and the run-level instrumentation around it:
 
-These refinements are uncommitted at session close. Next session still starts on registering all six agents in `main.py`.
+- `warlock/supervisor.py` — new file. Supervisor class with a strict JSON-only ROLE prompt that judges agent outputs on two axes (ON-DOMAIN, QUALITY). Returns `bool`, writes structured `validation_results` and accumulates `token_spend["supervisor"]` into memory.
+- `warlock/orchestrator.py` — optional `supervisor=` constructor arg. After each agent runs, the orchestrator calls `supervisor.validate(domain, task, output)`. Per-agent and per-supervisor wall-clock time is recorded under `timing` in memory. Orchestrator now also records its own `token_spend["orchestrator"]` from the decompose call.
+- `warlock/memory.py` — added `print_run_summary()`: per-agent token cost (at Haiku 4.5 rates, $0.80/$4.00 per Mtok), seconds, and a total cost line.
+- `main.py` — registers all six specialist agents, wires the Supervisor into the Orchestrator, calls `print_log()` then `print_run_summary()`.
+- `.gitignore` — ignores `output*.txt` audit dumps.
+
+Three known issues were caught in code review and logged under Phase 4 in `plan.md` (P0 validation result discarded, P1 `cache_read_tokens=None` guard, P2 orchestrator token tracking overwrites, P3 supervisor non-deterministic).
 
 ---
 
@@ -37,9 +41,9 @@ Public-facing entry point. Project overview, stack, run command, triangle archit
 
 ### `CLAUDE.md` ✓ done
 
-Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules.
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress.
 
-### `warlock/memory.py` ✓ done
+### `warlock/memory.py` ✓ done — shared state bus
 
 The shared state bus every corner of the triangle reads from and writes to.
 
@@ -53,19 +57,19 @@ class Memory:
     def read(self, key): ...
     def dump(self): ...
     def log(self): ...
-    def print_log(self): ...
+    def print_log(self): ...           # pretty render of every write
+    def print_run_summary(self): ...   # NEW — per-agent cost + timing + total
 ```
 
-`print_log()` was improved this session: detects dict-of-strings (agent outputs) and renders them as readable markdown instead of escaped JSON. Other values (dicts, lists) are pretty-printed as JSON with separators.
+`print_log()` detects dict-of-strings (agent outputs) and renders them as readable markdown; other values pretty-print as JSON.
+
+`print_run_summary()` reads `token_spend` and `timing` from memory and emits a one-line-per-actor table with input/output token cost (Haiku 4.5 pricing hardcoded for now) and a total cost line.
 
 ### `warlock/llm.py` ✓ done — provider contract
 
 The language Warlock uses to talk to any LLM. Three types:
 
 ```python
-from dataclasses import dataclass
-from typing import Any, Protocol
-
 @dataclass
 class LLMUsage:
     input_tokens: int
@@ -99,226 +103,126 @@ Empty package file.
 
 ### `warlock/providers/anthropic.py` ✓ done — first provider adapter
 
-All Anthropic-specific logic lives here. Nothing leaks out.
+All Anthropic-specific logic lives here. `cache_control: ephemeral` is set on the system prompt. `cache_read_input_tokens` is read off the response via `getattr(..., 0)`.
 
-```python
-from typing import Any, cast
-import anthropic
-from anthropic.types import MessageParam
-from warlock.llm import LLMResponse, LLMUsage
+**Caveat:** the Anthropic SDK can return `None` (not `0`) for `cache_read_input_tokens`. Tracked as P1 — needs guarding in supervisor/orchestrator accumulators.
 
-class AnthropicClient:
-    def __init__(self):
-        self._client = anthropic.Anthropic()
+### `warlock/agent.py` ✓ done — base Agent, token tracking live
 
-    def complete(
-        self,
-        model: str,
-        system: str,
-        messages: list[dict[str, Any]],
-        max_tokens: int = 1024,
-    ) -> LLMResponse:
-        response = self._client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            messages=cast(list[MessageParam], messages),
-        )
-        text = next(block.text for block in response.content if block.type == "text")
-        usage = LLMUsage(
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0),
-        )
-        return LLMResponse(text=text, usage=usage)
-```
-
-**Key concepts:**
-- `cache_control: ephemeral` on the system prompt — Anthropic-specific, contained here
-- `cast(list[MessageParam], messages)` — type-checker hint only, no runtime effect
-- `getattr(..., "cache_read_input_tokens", 0)` — only present in response on a cache hit
-
-### `warlock/agent.py` ✓ done — provider-agnostic, token tracking live
-
-```python
-from warlock.llm import LLMClient
-
-class Agent:
-    def __init__(self, name, identity, memory, client: LLMClient, model: str):
-        self.name = name
-        self.identity = identity
-        self.memory = memory
-        self._client = client
-        self._model = model
-
-    def run(self, task):
-        problem = self.memory.read("problem_statement")
-
-        response = self._client.complete(
-            model=self._model,
-            system=self.identity,
-            messages=[{"role": "user", "content": f"Problem: {problem}\n\nTask: {task}"}],
-        )
-
-        agent_outputs = self.memory.read("agent_outputs") or {}
-        agent_outputs[self.name] = response.text
-        self.memory.write("agent_outputs", agent_outputs)
-
-        token_spend = self.memory.read("token_spend") or {}
-        token_spend[self.name] = {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "cache_read_tokens": response.usage.cache_read_tokens,
-        }
-        self.memory.write("token_spend", token_spend)
-
-        output = response.text
-        return output
-
-    def describe(self):
-        print(f"Agent: {self.name}")
-        print(f"Identity: {self.identity}")
-        print(f"Memory: {self.memory.dump()}")
-```
-
-**Key concepts:**
-- No `import anthropic` — the agent is fully provider-agnostic
-- `token_spend` is written to memory after every run — cost tracking is live
+Provider-agnostic base class. Each `run()` reads `problem_statement`, calls `client.complete()` with the agent's `ROLE` as system prompt, writes its output to `agent_outputs[self.name]` and its usage to `token_spend[self.name]` in memory.
 
 ### `warlock/agents/data_engineer.py` ✓ done — first specialist agent
 
-```python
-from warlock.agent import Agent
-from warlock.llm import LLMClient
-
-ROLE = """..."""  # production-grade system prompt (see file for full text)
-
-class DataEngineerAgent(Agent):
-    def __init__(self, memory, client: LLMClient, model: str):
-        super().__init__(
-            name="data_engineer",
-            identity=ROLE,
-            memory=memory,
-            client=client,
-            model=model,
-        )
-```
-
-**Key concepts:**
-- Model is passed by the caller — the specialist does not hardcode it
-- `ROLE` is a module-level constant — identity text separate from class logic
-- System prompt covers: reasoning approach, proposal format, technical grounding (BigQuery, Snowflake, Databricks, dbt, Kafka, Airflow, OpenTelemetry + more), cost awareness across all dimensions (storage, compute, egress, dev time, on-call, lock-in), anti-sycophancy rule, testing as test coverage not dashboards, GitOps for pipeline code
+Production-grade ROLE: pipelines, ingestion, transformation, schemas. Cost-aware across storage/compute/egress/dev-time/on-call/lock-in. Anti-sycophancy rule, testing as test coverage not dashboards, GitOps for pipeline code. Holds the line on enforcement when analytics owns the metric definition.
 
 ### `warlock/agents/ml_engineer.py` ✓ done — machine learning specialist
 
-Same pattern as `data_engineer`. ROLE covers: do-we-need-ML gate, gather-before-proposing (data, latency, eval criteria, stack, deployment, time horizon), baseline-before-complexity, evaluation-before-deployment, reproducibility, fairness and disparate impact surfacing, pushback handling (update on evidence not pressure), 18-month maintainability question, monitoring as a pre-deployment requirement.
+ROLE: do-we-need-ML gate, baseline-before-complexity, evaluation-before-deployment, reproducibility, fairness and disparate-impact surfacing, pushback handling, 18-month maintainability question, monitoring as a pre-deployment requirement. Splits monitoring with MLOps: model-quality thresholds here, enforcement infra there.
 
 ### `warlock/agents/analytics.py` ✓ done — analytics + BI specialist
 
-Absorbs the BI domain. ROLE covers: analysis vs. confirmation distinction, one-time analysis vs. recurring artifact, metric definition alignment before building, audience-tailoring (executive/operational/technical), tool selection heuristic (SQL → BI tool → Python → dbt), segment-before-concluding, profile-before-you-conclude, context-beats-precision, trust-is-fragile, causality path (name the identification strategy), hand-off recognition.
+ROLE: analysis vs. confirmation, one-time vs. recurring, metric definition alignment before building, audience-tailoring, tool selection heuristic, segment-before-concluding, profile-before-you-conclude, context-beats-precision, trust-is-fragile, causality path, hand-off recognition. Owns the metric definition; hands enforcement to data engineering.
 
 ### `warlock/agents/devops_mlops.py` ✓ done — DevOps / MLOps specialist
 
-ROLE covers: SLA/SLO/SLI distinction, RPO/RTO, migration cutover strategies, ML-specific probes (champion-challenger, shadow mode, data pipeline failures), incident response priority order (stabilize → diagnose → optimize), rollout strategies (shadow/canary/blue-green/A/B/progressive), boring technology principle, error budgets, post-mortem anatomy (multiple contributing factors, named owners), DR vs. incident response distinction, alert fatigue as operational failure, deprecation discipline, security as "scheduled incident."
+ROLE: SLA/SLO/SLI, RPO/RTO, migration cutovers, ML-specific probes (champion-challenger, shadow mode, data pipeline failures), incident response priority order, rollout strategies, boring technology, error budgets, post-mortem anatomy, DR vs. incident distinction, alert fatigue as operational failure, deprecation discipline, security as scheduled incident.
 
-### `warlock/agents/data_scientist.py` ✓ done — data science specialist (new this session)
+### `warlock/agents/data_scientist.py` ✓ done — data science specialist
 
-Added in Phase 3 after recognizing the gap between analytics (monitors known things) and ML engineering (builds production systems). The data scientist owns the space between them: problem formulation, experimentation, and statistical methodology.
-
-ROLE covers: predictive/causal/descriptive distinction as the most consequential framing choice, unit of analysis, data-generating process validation, baseline and leakage probes, EXPERIMENTATION DISCIPLINE section (pre-registration, power analysis before not after, heterogeneity planning, researcher degrees of freedom), identification before estimation, uncertainty as the deliverable not the disclaimer, statistical vs. business significance, fairness and disparate impact, motivated analysis pushback, model monitoring as a pre-deployment requirement, feature engineering and validation strategy ownership (hands production system to ML engineer).
+ROLE: predictive/causal/descriptive distinction, unit of analysis, data-generating process validation, baseline and leakage probes, experimentation discipline (pre-registration, power analysis, heterogeneity planning, researcher degrees of freedom), identification before estimation, uncertainty as the deliverable, statistical vs. business significance, fairness, motivated-analysis pushback, hands production system to ML engineer.
 
 ### `warlock/agents/software_dev.py` ✓ done — software engineering specialist
 
-ROLE covers: interface-before-implementation as the organizing philosophy, async/event-driven delivery guarantee probes (at-most-once/at-least-once/exactly-once, dead letter strategy), boundary definition (network/trust/persistence), backwards compatibility discipline (additive safe, removal breaking, semantic change breaking, deprecation lifecycle), distributed systems failure modes (timeouts, retries, circuit breakers as defaults), contract testing as most valuable at boundaries, database hazards (N+1, long transactions, connection pool exhaustion, migrations), implicit schema risk from uncontrolled upstream sources, specific handoff partners named (data engineering, data science, ML engineering, MLOps, security).
+ROLE: interface-before-implementation, async/event-driven delivery guarantees (at-most-once/at-least-once/exactly-once + DLQ), boundary definition, backwards compatibility discipline, distributed-systems failure modes, contract testing at boundaries, database hazards (N+1, long transactions, pool exhaustion, migrations), implicit schema risk, named handoff partners.
 
-### `warlock/orchestrator.py` ✓ done — problem decomposition and routing
+### `warlock/orchestrator.py` ✓ done — decompose, route, time, supervise
 
 ```python
-import json
-from warlock.llm import LLMClient
-
-ROLE = """..."""  # instructs LLM to return JSON array of {domain, task} objects
-
 class Orchestrator:
-    def __init__(self, memory, client: LLMClient, model: str):
-        self._memory = memory
-        self._client = client
-        self._model = model
-        self._agents = {}
+    def __init__(self, memory, client: LLMClient, model: str, supervisor=None):
+        ...
 
-    def register(self, agent): ...     # adds agent to registry by agent.name
-    def decompose(self, problem): ...  # LLM call → list of {"domain": ..., "task": ...}
-    def run(self, problem): ...        # writes problem_statement, decomposes, routes, executes
+    def register(self, agent): ...
+    def decompose(self, problem): ...   # LLM → JSON array [{domain, task}, ...]
+    def run(self, problem):
+        # writes problem_statement
+        # decompose(); record timing["orchestrator"] + token_spend["orchestrator"]
+        # for each item: route to registered agent, record timing[domain]
+        # if supervisor: validate(domain, task, output), accumulate timing["supervisor"]
 ```
 
 **Key concepts:**
-- `decompose()` calls the LLM and parses a JSON array — structured output, not free-form
-- Defensive strip removes markdown code fences if the model wraps output in ` ```json ``` `
-- Routes by domain key — only runs agents that are registered
-- Empty decomposition (`[]`) is a silent no-op — known edge case, Supervisor will handle in Phase 4
+- Supervisor is optional — Orchestrator runs without one if not passed
+- `decompose()`'s defensive strip removes ```json ``` fences if the model emits them
+- Empty decomposition (`[]`) is a silent no-op — Supervisor will handle in the consensus loop
+- **Known issue P0:** the return value of `self._supervisor.validate()` is discarded — no retry happens yet. This is the next thing to fix.
+- **Known issue P2:** `token_spend["orchestrator"] = {...}` overwrites instead of `+=`. Fine while `decompose()` runs once per `run()`, but will lose data once the retry loop calls it again.
 
-### `main.py` ✓ done — wires everything together
+### `warlock/supervisor.py` ✓ done — first version
 
-Currently only registers `data_engineer`. Needs to be updated to register all six agents.
+```python
+class Supervisor:
+    def __init__(self, memory, client: LLMClient, model: str): ...
+
+    def validate(self, agent_name: str, task: str, output: str) -> bool:
+        # reads problem_statement
+        # calls LLM with strict JSON-only ROLE prompt
+        # writes validation_results[agent_name] = {accepted, reason}
+        # accumulates token_spend["supervisor"] via +=
+        # returns result["accepted"]
+```
+
+**ROLE highlights:** two-axis evaluation (ON-DOMAIN, QUALITY), JSON-only response (`{"accepted": bool, "reason": str}`), defensive code-fence strip on parse.
+
+**Known issues:**
+- **P1:** `cache_read_tokens` may be `None` from the Anthropic SDK; `+=` will TypeError. Needs a `(value or 0)` guard.
+- **P3:** acceptance rate is non-deterministic across runs (saw 3/6 → 5/6 rejected with no code change). Need `temperature=0` on supervisor calls and tighter acceptance criteria.
+
+### `main.py` ✓ done — wires the triangle (no consensus yet)
+
+Registers all six agents, instantiates the Supervisor, wires it into the Orchestrator, runs a sample churn-prediction problem, then prints the full memory log and the run summary.
+
+### `.gitignore` ✓ done
+
+Adds `output*.txt` so audit dumps don't get committed.
 
 ---
 
 ## What we are building next
 
-### Step 1 — Register all six agents in `main.py`
+### Step 1 (P0) — Close the supervisor retry loop
 
-Update `main.py` to import and register all agents:
-
-```python
-from warlock.agents.data_engineer import DataEngineerAgent
-from warlock.agents.ml_engineer import MLEngineerAgent
-from warlock.agents.analytics import AnalyticsAgent
-from warlock.agents.devops_mlops import DevOpsMLOpsAgent
-from warlock.agents.data_scientist import DataScientistAgent
-from warlock.agents.software_dev import SoftwareDevAgent
-from warlock.memory import Memory
-from warlock.orchestrator import Orchestrator
-from warlock.providers.anthropic import AnthropicClient
-
-m = Memory()
-client = AnthropicClient()
-
-orchestrator = Orchestrator(memory=m, client=client, model="claude-haiku-4-5-20251001")
-
-orchestrator.register(DataEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-orchestrator.register(MLEngineerAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-orchestrator.register(AnalyticsAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-orchestrator.register(DevOpsMLOpsAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-orchestrator.register(DataScientistAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-orchestrator.register(SoftwareDevAgent(memory=m, client=client, model="claude-haiku-4-5-20251001"))
-
-orchestrator.run("Build a churn prediction system for a SaaS product")
-m.print_log()
-```
-
-Run it to confirm all six agents route and respond correctly end-to-end.
-
-### Step 2 — Phase 4: Supervisor
-
-After the multi-agent run is confirmed, begin `warlock/supervisor.py`:
+In `orchestrator.py`, capture the return value of `validate()` and act on it. Minimum shape:
 
 ```python
-class Supervisor:
-    def __init__(self, memory, client: LLMClient, model: str):
-        ...
-
-    def validate(self, agent_name: str, output: str) -> bool:
-        # reviews agent output for quality and domain correctness
-        # returns True (accept) or False (reject, trigger triangle)
-        ...
+accepted = self._supervisor.validate(item["domain"], item["task"], output)
+if not accepted:
+    # retry the agent once with the rejection reason fed back as task context
+    # cap retries (Phase 4 escape valve: 3 iterations total)
+    ...
 ```
+
+Before writing the loop, fix the three small issues underneath it:
+- P1: in both `supervisor.py` and `orchestrator.py`, guard `cache_read_tokens` with `or 0` before any `+=`.
+- P2: switch `token_spend["orchestrator"] = {...}` to accumulate with `+=` like the supervisor pattern.
+- P3: pass `temperature=0` on the supervisor's `complete()` call (will need to be threaded through `LLMClient.complete()` signature) and tighten the acceptance language in `ROLE`.
+
+### Step 2 — Escape valve
+
+After 3 iterations without acceptance, emit the best-effort output with a `confidence` score in memory. Tag the run as `consensus=partial` rather than pretending agreement.
+
+### Step 3 — Parallel multi-agent run
+
+Today `run()` iterates tasks sequentially. Once the retry loop is stable, run independent domains concurrently and let the supervisor gate each.
 
 ---
 
 ## Known edge cases (Phase 4)
 
-- **Empty decomposition** — orchestrator returns `[]` silently when problem doesn't match any domain. Supervisor will handle this.
+- **Empty decomposition** — orchestrator returns `[]` silently when the problem doesn't match any domain. Supervisor will handle this once the consensus loop lands.
 - **Out-of-domain problems** — no feedback to the user when nothing runs. Same fix.
+- **Cache token `None`** — see P1 above.
+- **Supervisor non-determinism** — see P3 above.
 
 ---
 
@@ -327,27 +231,29 @@ class Supervisor:
 ```
 warlock/
 ├── __init__.py
-├── memory.py              ✓ done — shared state bus, pretty print_log
+├── memory.py              ✓ done — shared state bus + print_log + print_run_summary
 ├── agent.py               ✓ done — base Agent, run(), token tracking
 ├── llm.py                 ✓ done — LLMClient Protocol, LLMResponse, LLMUsage
-├── orchestrator.py        ✓ done — decompose, register, route, run
+├── orchestrator.py        ✓ done — decompose, register, route, run, timing, supervisor hook
+├── supervisor.py          ✓ done — validate(), JSON-only ROLE, validation_results in memory
 ├── providers/
 │   ├── __init__.py        ✓ done
 │   └── anthropic.py       ✓ done — AnthropicClient, cache_control on system prompt
 └── agents/
     ├── __init__.py        ✓ done
-    ├── data_engineer.py   ✓ done — DataEngineerAgent, production-grade ROLE
-    ├── ml_engineer.py     ✓ done — MLEngineerAgent, production-grade ROLE
-    ├── analytics.py       ✓ done — AnalyticsAgent, absorbs BI domain
-    ├── devops_mlops.py    ✓ done — DevOpsMLOpsAgent, production-grade ROLE
-    ├── data_scientist.py  ✓ done — DataScientistAgent, production-grade ROLE
-    └── software_dev.py    ✓ done — SoftwareDevAgent, production-grade ROLE
+    ├── data_engineer.py   ✓ done
+    ├── ml_engineer.py     ✓ done
+    ├── analytics.py       ✓ done
+    ├── devops_mlops.py    ✓ done
+    ├── data_scientist.py  ✓ done
+    └── software_dev.py    ✓ done
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
-main.py                     ✓ done (needs agent registrations updated) ← next
-supervisor.py               ← Phase 4
+main.py                     ✓ done — six agents + supervisor wired
+.gitignore                  ✓ done — ignores output*.txt
 pyproject.toml
+                            ← next: orchestrator retry loop (P0) + P1/P2/P3 fixes
 ```
 
 ---
