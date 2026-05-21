@@ -50,3 +50,22 @@ class Memory:
             else:
                 print(value)
         print(f"\n{separator}")
+
+    def print_run_summary(self):
+        token_spend = self._store.get("token_spend", {})
+        timing = self._store.get("timing", {})
+        separator = "─" * 60
+        print(f"\n{separator}")
+        print("Run Summary")
+        print(separator)
+        total_cost = 0.0000
+        for agent, spend in token_spend.items():
+            input_cost = spend["input_tokens"] * 0.80 / 1_000_000
+            output_cost = spend["output_tokens"] * 4.00 / 1_000_000
+            cost = input_cost + output_cost
+            total_cost += cost
+            seconds = timing.get(agent, "─")
+            print(f"{agent:<20} ${cost:.4f} {seconds}s")
+        print(f"{separator}")
+        print(f"Total Cost: ${total_cost:.4f}")
+        print(separator)

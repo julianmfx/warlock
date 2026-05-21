@@ -41,3 +41,4 @@ orchestrator.register(
 
 output = orchestrator.run("Build a churn prediction system for a SaaS product")
 m.print_log()
+m.print_run_summary()

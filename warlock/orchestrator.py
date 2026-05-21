@@ -1,4 +1,5 @@
 import json
+import time
 
 from warlock.llm import LLMClient
 
@@ -45,4 +46,11 @@ class Orchestrator:
         for item in tasks:
             agent = self._agents.get(item["domain"])
             if agent:
+                start = time.time()
                 agent.run(item["task"])
+                end = time.time()
+                elapsed = round(end - start, 2)
+
+                timing = self._memory.read("timing") or {}
+                timing[item["domain"]] = elapsed
+                self._memory.write("timing", timing)
