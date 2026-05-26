@@ -50,27 +50,38 @@ class Supervisor:
                     ),
                 }
             ],
+            temperature=0,
         )
 
-        existing = self._memory.read("token_spend") or {}
-        supervisor_spend = existing.get(
+        token_spend = self._memory.read("token_spend") or {}
+        current_tokens = token_spend.get(
             "supervisor",
             {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0},
         )
-        supervisor_spend["input_tokens"] += response.usage.input_tokens
-        supervisor_spend["output_tokens"] += response.usage.output_tokens
-        supervisor_spend["cache_read_tokens"] += response.usage.cache_read_tokens
-        existing["supervisor"] = supervisor_spend
-        self._memory.write("token_spend", existing)
+        self._memory.patch(
+            "token_spend",
+            "supervisor",
+            {
+                "input_tokens": current_tokens["input_tokens"]
+                + response.usage.input_tokens,
+                "output_tokens": current_tokens["output_tokens"]
+                + response.usage.output_tokens,
+                "cache_read_tokens": current_tokens["cache_read_tokens"]
+                + (response.usage.cache_read_tokens or 0),
+            },
+        )
 
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0]
         result = json.loads(text)
-        validation_results = self._memory.read("validation_results") or {}
-        validation_results[agent_name] = {
-            "accepted": result["accepted"],
-            "reason": result["reason"],
-        }
-        self._memory.write("validation_results", validation_results)
+
+        self._memory.patch(
+            "validation_results",
+            agent_name,
+            {
+                "accepted": result["accepted"],
+                "reason": result["reason"],
+            },
+        )
         return result["accepted"]

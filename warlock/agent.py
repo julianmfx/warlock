@@ -24,20 +24,17 @@ class Agent:
             ],
         )
 
-        agent_outputs = self.memory.read("agent_outputs") or {}
-        agent_outputs[self.name] = response.text
-        self.memory.write("agent_outputs", agent_outputs)
-
-        token_spend = self.memory.read("token_spend") or {}
-        token_spend[self.name] = {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "cache_read_tokens": response.usage.cache_read_tokens,
-        }
-        self.memory.write("token_spend", token_spend)
-
         output = response.text
-
+        self.memory.patch("agent_outputs", self.name, output)
+        self.memory.patch(
+            "token_spend",
+            self.name,
+            {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "cache_read_tokens": response.usage.cache_read_tokens,
+            },
+        )
         return output
 
     def describe(self):
