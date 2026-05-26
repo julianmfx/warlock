@@ -16,10 +16,12 @@ class AnthropicClient:
         system: str,
         messages: list[dict[str, Any]],
         max_tokens: int = 1024,
+        temperature: float = 1.0,
     ) -> LLMResponse:
         response = self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
+            temperature=temperature,
             system=[
                 {
                     "type": "text",

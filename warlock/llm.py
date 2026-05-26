@@ -22,4 +22,5 @@ class LLMClient(Protocol):
         system: str,
         messages: list[dict[str, Any]],
         max_tokens: int = 1024,
+        temperature: float = 1.0,
     ) -> LLMResponse: ...
