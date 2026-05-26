@@ -56,4 +56,4 @@ If consensus is not reached after 3 iterations, Warlock emits the best-effort ou
 
 ## Status
 
-Phase 3 complete. Full agent fleet is live — six specialist agents with production-grade system prompts, clean domain boundaries, and explicit handoff contracts between them. Next: register all agents in `main.py`, then Phase 4 — Supervisor and triangle consensus loop.
+Phase 4 in progress. The full agent fleet is live — six specialist agents with production-grade system prompts, clean domain boundaries, and explicit handoff contracts. All agents are registered in `main.py` and the Supervisor is wired into the Orchestrator: it validates each agent output, records per-actor token cost and timing, and logs every validation event to disk via the trace logger. Next: the triangle consensus loop — replace the current single blind retry with a 3-iteration loop that passes the rejection reason back to the agent, then the escape valve (best-effort output with a confidence score) and parallel multi-agent execution.

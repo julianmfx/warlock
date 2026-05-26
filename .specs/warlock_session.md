@@ -17,15 +17,9 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-Phase 4 kicked off. We shipped the first version of the Supervisor and the run-level instrumentation around it:
+Spec-verification and housekeeping only — no new application code shipped. The single commit (`2b9cf6d`) broadened `.gitignore` to ignore all `*.txt` audit dumps and the `traces/` directory (previously only `output*.txt` was ignored). All four spec files were read and reconciled against the live code: `orchestrator.py`, `supervisor.py`, `memory.py`, the six agents, and `trace_logger.py` all match their documented state. The safety scan over `.specs/` and `.claude/` returned CLEAR.
 
-- `warlock/supervisor.py` — new file. Supervisor class with a strict JSON-only ROLE prompt that judges agent outputs on two axes (ON-DOMAIN, QUALITY). Returns `bool`, writes structured `validation_results` and accumulates `token_spend["supervisor"]` into memory.
-- `warlock/orchestrator.py` — optional `supervisor=` constructor arg. After each agent runs, the orchestrator calls `supervisor.validate(domain, task, output)`. Per-agent and per-supervisor wall-clock time is recorded under `timing` in memory. Orchestrator now also records its own `token_spend["orchestrator"]` from the decompose call.
-- `warlock/memory.py` — added `print_run_summary()`: per-agent token cost (at Haiku 4.5 rates, $0.80/$4.00 per Mtok), seconds, and a total cost line.
-- `main.py` — registers all six specialist agents, wires the Supervisor into the Orchestrator, calls `print_log()` then `print_run_summary()`.
-- `.gitignore` — ignores `output*.txt` audit dumps.
-
-Three known issues were caught in code review and logged under Phase 4 in `plan.md` (P0 validation result discarded, P1 `cache_read_tokens=None` guard, P2 orchestrator token tracking overwrites, P3 supervisor non-deterministic).
+The Phase 4 consensus loop remains the open frontier: `orchestrator.py` still does a single blind retry on rejection (P0 fixed, but the full reason-passing 3-iteration loop is not yet built).
 
 ---
 
@@ -184,11 +178,15 @@ Registers all six agents, instantiates the Supervisor, wires it into the Orchest
 
 ### `.gitignore` ✓ done
 
-Adds `output*.txt` so audit dumps don't get committed.
+Ignores all `*.txt` audit dumps and the `traces/` directory so validation logs and run dumps never get committed.
+
+### `warlock/trace_logger.py` ✓ done — validation event recorder
+
+`TraceLogger` appends one JSONL record per validation event to `traces/<date>/<run_id>.jsonl`. Each record captures `run_id`, `timestamp`, `problem`, `agent`, `task`, `output`, `accepted`, `reason`, and `iteration`. Instantiated per run in `Orchestrator.run()` with a fresh `run_id` (UUID). This is the raw dataset for future fine-tuning of a cheaper supervisor model. Known gap: only iteration 0 is logged today — the blind retry's output is not yet recorded (fixed once the consensus loop lands).
 
 ---
 
-## What was fixed this session
+## Recently completed (prior session)
 
 - **P0 ✓** — `orchestrator.py` now captures `validate()` return value and retries the agent once on rejection.
 - **P1 ✓** — `cache_read_tokens or 0` guard added in both `supervisor.py` and `orchestrator.py`.
@@ -241,8 +239,9 @@ warlock/
 ├── memory.py              ✓ done — shared state bus + print_log + print_run_summary
 ├── agent.py               ✓ done — base Agent, run(), token tracking
 ├── llm.py                 ✓ done — LLMClient Protocol, LLMResponse, LLMUsage
-├── orchestrator.py        ✓ done — decompose, register, route, run, timing, supervisor hook
+├── orchestrator.py        ✓ done — decompose, register, route, run, timing, supervisor hook, trace logging
 ├── supervisor.py          ✓ done — validate(), JSON-only ROLE, validation_results in memory
+├── trace_logger.py        ✓ done — JSONL validation event recorder (traces/<date>/<run_id>.jsonl)
 ├── providers/
 │   ├── __init__.py        ✓ done
 │   └── anthropic.py       ✓ done — AnthropicClient, cache_control on system prompt
@@ -258,9 +257,9 @@ constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
 main.py                     ✓ done — six agents + supervisor wired
-.gitignore                  ✓ done — ignores output*.txt
+.gitignore                  ✓ done — ignores *.txt and traces/
 pyproject.toml
-                            ← next: orchestrator retry loop (P0) + P1/P2/P3 fixes
+                            ← next: consensus loop — replace single blind retry with 3-iteration reason-passing loop
 ```
 
 ---
