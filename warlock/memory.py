@@ -21,6 +21,18 @@ class Memory:
             }
         )
 
+    def patch(self, key, sub_key, value):
+        if key not in self._store:
+            self._store[key] = {}
+        self._store[key][sub_key] = value
+        self._log.append(
+            {
+                "ts": datetime.utcnow().isoformat(),
+                "key": f"{key}.{sub_key}",
+                "value": value,
+            }
+        )
+
     # retrieves one value from store
     def read(self, key):
         return self._store.get(key, None)
