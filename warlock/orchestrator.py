@@ -1,7 +1,9 @@
 import json
 import time
+import uuid
 
 from warlock.llm import LLMClient
+from warlock.trace_logger import TraceLogger
 
 ROLE = """You are an orchestrator for a multi-agent data and AI platform.
 Your job is to decompose a problem into sub-tasks and assign each to the correct specialist domain.
@@ -61,6 +63,8 @@ class Orchestrator:
 
     def run(self, problem):
         self._memory.write("problem_statement", problem)
+        run_id = str(uuid.uuid4())
+        trace_logger = TraceLogger(run_id)
 
         start = time.time()
         tasks = self.decompose(problem)
@@ -84,6 +88,17 @@ class Orchestrator:
                     sv_start = time.time()
                     accepted = self._supervisor.validate(
                         item["domain"], item["task"], output
+                    )
+                    trace_logger.log(
+                        problem=problem,
+                        agent=item["domain"],
+                        task=item["task"],
+                        output=output,
+                        accepted=accepted,
+                        reason=self._memory.read("validation_results")[item["domain"]][
+                            "reason"
+                        ],
+                        iteration=0,
                     )
                     if not accepted:
                         agent.run(item["task"])
