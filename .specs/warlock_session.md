@@ -188,41 +188,48 @@ Adds `output*.txt` so audit dumps don't get committed.
 
 ---
 
+## What was fixed this session
+
+- **P0 ✓** — `orchestrator.py` now captures `validate()` return value and retries the agent once on rejection.
+- **P1 ✓** — `cache_read_tokens or 0` guard added in both `supervisor.py` and `orchestrator.py`.
+- **P2 ✓** — Orchestrator token tracking now uses the `current_tokens` accumulation pattern instead of overwriting.
+- **P3 ✓** — `temperature=0` threaded through `LLMClient.complete()` and `AnthropicClient.complete()`; supervisor calls with it explicitly.
+- **Naming cleanup** — `token_spend` / `current_tokens` naming made consistent across both files.
+- **Explicit accumulation pattern** — replaced implicit mutation-via-alias with explicit read → add → write in both orchestrator and supervisor.
+- **`memory.patch()`** — new method added to `Memory` for writing nested keys without overwriting the parent dict.
+- **`TraceLogger`** — new `warlock/trace_logger.py`. Appends one JSONL record per validation event to `traces/<date>/<run_id>.jsonl`. Captures: `run_id`, `timestamp`, `problem`, `agent`, `task`, `output`, `accepted`, `reason`, `iteration`. This is the raw dataset for future supervisor fine-tuning.
+- **`CLAUDE.md`** — behavioral guidelines added (4 principles: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution).
+- **`EXAMPLES.md`** — annotated before/after examples for all four principles.
+
 ## What we are building next
 
-### Step 1 (P0) — Close the supervisor retry loop
+### Consensus loop
 
-In `orchestrator.py`, capture the return value of `validate()` and act on it. Minimum shape:
+Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
+- Cap at 3 iterations per agent
+- Pass rejection reason back to agent on each retry so it can improve
+- Log every iteration via `TraceLogger` (currently only iteration 0 is logged)
+- After 3 failed iterations, tag output as `confidence: low` and continue
 
-```python
-accepted = self._supervisor.validate(item["domain"], item["task"], output)
-if not accepted:
-    # retry the agent once with the rejection reason fed back as task context
-    # cap retries (Phase 4 escape valve: 3 iterations total)
-    ...
-```
+### Clarifying questions — deferred to Phase 5
 
-Before writing the loop, fix the three small issues underneath it:
-- P1: in both `supervisor.py` and `orchestrator.py`, guard `cache_read_tokens` with `or 0` before any `+=`.
-- P2: switch `token_spend["orchestrator"] = {...}` to accumulate with `+=` like the supervisor pattern.
-- P3: pass `temperature=0` on the supervisor's `complete()` call (will need to be threaded through `LLMClient.complete()` signature) and tighten the acceptance language in `ROLE`.
+Agents asking clarifying questions is valid professional behavior, but requires a user in the loop to answer them. Until Phase 5 (conversational loop), the supervisor correctly rejects this — there is no mechanism to resolve the questions. When Phase 5 ships, update supervisor ROLE acceptance criteria to explicitly allow clarifying questions.
 
-### Step 2 — Escape valve
+### Escape valve
 
-After 3 iterations without acceptance, emit the best-effort output with a `confidence` score in memory. Tag the run as `consensus=partial` rather than pretending agreement.
+After 3 iterations without consensus, emit best-effort output tagged with a confidence score. Tag the run as `consensus=partial`.
 
-### Step 3 — Parallel multi-agent run
+### Parallel multi-agent run
 
-Today `run()` iterates tasks sequentially. Once the retry loop is stable, run independent domains concurrently and let the supervisor gate each.
+Run independent domains concurrently once the retry loop is stable.
 
 ---
 
 ## Known edge cases (Phase 4)
 
-- **Empty decomposition** — orchestrator returns `[]` silently when the problem doesn't match any domain. Supervisor will handle this once the consensus loop lands.
+- **Empty decomposition** — orchestrator returns `[]` silently when the problem doesn't match any domain. Will be handled by the consensus loop.
 - **Out-of-domain problems** — no feedback to the user when nothing runs. Same fix.
-- **Cache token `None`** — see P1 above.
-- **Supervisor non-determinism** — see P3 above.
+- **Retry not logged** — `TraceLogger` is only called before the retry. The retried output is not recorded. Fixed in consensus loop.
 
 ---
 

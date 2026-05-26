@@ -123,12 +123,18 @@ The triangle activates on:
 - [ ] Escape valve — after 3 iterations emit best-effort output with confidence score
 - [ ] Multi-agent run: all agents in parallel, triangle converges outputs
 
-#### Known issues (fix before Step 2)
+#### Known issues fixed
 
-- **P0 — Validation result is discarded:** `orchestrator.py` calls `self._supervisor.validate()` but throws away the return value. Rejections are stored in memory but the orchestrator takes no action. Fix: check the bool and retry the agent — this is the core of the retry loop.
-- **P1 — `cache_read_tokens` may be `None`:** `supervisor.py` and `orchestrator.py` use `+=` on `cache_read_tokens`. The Anthropic API returns `None` (not `0`) when there are no cache hits. Guard against `None` before accumulating.
-- **P2 — Orchestrator token tracking overwrites instead of accumulates:** `token_spend["orchestrator"] = {...}` is a plain assignment. If `decompose()` were called more than once, earlier tokens would vanish. Should accumulate with `+=` to match the supervisor pattern.
-- **P3 — Supervisor is non-deterministic:** Acceptance rate varied between runs (3/6 → 5/6 rejected) with no code change. Fix: set `temperature=0` on supervisor calls; tighten the ROLE prompt acceptance criteria.
+- **P0 ✓** — Capture `validate()` return value and retry agent once on rejection.
+- **P1 ✓** — Guard `cache_read_tokens` with `or 0` before accumulating in both supervisor and orchestrator.
+- **P2 ✓** — Orchestrator token tracking now accumulates via `current_tokens` pattern instead of overwriting.
+- **P3 ✓** — `temperature=0` on supervisor calls; `LLMClient.complete()` signature updated to accept `temperature`.
+
+#### Consensus loop design notes
+
+- On retry, the rejection **reason** must be passed back to the agent as context — blind retries produce the same output.
+- Agents asking clarifying questions is valid professional behavior — but only works when there is a user in the loop to answer them. Until Phase 5 (conversational loop), the supervisor correctly rejects this because there is no mechanism to resolve the questions. When Phase 5 ships, update supervisor acceptance criteria to allow clarifying questions.
+- The trace logger (`warlock/trace_logger.py`) captures every validation event to disk — this data is the foundation for future fine-tuning of a cheaper supervisor model.
 
 ### Phase 5 — Platform
 - [ ] CLI interface to submit problems to Warlock
