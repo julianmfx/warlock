@@ -18,3 +18,6 @@ list_models.py
 # Audit logs and outputs
 *.txt
 traces/
+
+# Eval dataset — raw agent outputs, may contain sensitive input (D8)
+eval_runs/

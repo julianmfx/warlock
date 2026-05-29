@@ -17,9 +17,16 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-Spec-verification and housekeeping only — no new application code shipped. The single commit (`2b9cf6d`) broadened `.gitignore` to ignore all `*.txt` audit dumps and the `traces/` directory (previously only `output*.txt` was ignored). All four spec files were read and reconciled against the live code: `orchestrator.py`, `supervisor.py`, `memory.py`, the six agents, and `trace_logger.py` all match their documented state. The safety scan over `.specs/` and `.claude/` returned CLEAR.
+**Design only — no application code shipped, no new commits.** We designed the evaluation system end to end and wrote it to `.specs/eval_ml_plan.md`. The work started from a question — "how do I mathematically evaluate whether a run's process and output are correct?" — and went through several sharpening passes:
 
-The Phase 4 consensus loop remains the open frontier: `orchestrator.py` still does a single blind retry on rejection (P0 fixed, but the full reason-passing 3-iteration loop is not yet built).
+1. Started from a softmax-over-quality-classes idea, then named it honestly: it's a **heuristic scoring function**, not a trained classifier, until labels exist.
+2. Designed the path to **turn the heuristic into real ML** — same softmax, but learned weights `W, b` via multinomial logistic regression once labeled runs accumulate.
+3. Caught and fixed the **circularity** problem: C and R only measure *process conformance* (did routing match expectation), never quality. Reframed the feature set into three honest axes and required at least one output-grounded feature.
+4. Settled eight decisions **D1–D8** (see the eval plan), including the two that were blocking "log every run": what to do with uncased runs (D7 — log everything, null only C/R, add `has_case` flag) and dataset storage (D8 — gitignore `eval_runs/`).
+
+Uncommitted at session close: new `.specs/eval_ml_plan.md`, and `.gitignore` gained `eval_runs/` (the D8 guard, added before any logger code).
+
+The Phase 4 consensus loop remains open from prior sessions — not abandoned, just not this session's focus. The active frontier is now eval **Step 1**.
 
 ---
 
@@ -35,7 +42,29 @@ Public-facing entry point. Project overview, stack, run command, triangle archit
 
 ### `CLAUDE.md` ✓ done
 
-Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress.
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`.
+
+### `.specs/eval_ml_plan.md` ✓ done — evaluation system design (this session)
+
+The full step-by-step plan to evaluate Warlock runs and evolve the evaluator from heuristic to learned model. Not code yet — the agreed design Step 1 builds against.
+
+**Feature vector** `x = [C, R, A, F] ∈ [0,1]⁴`, computed per run from memory + a per-problem eval case:
+- **C — coverage (routing recall)** = `|invoked ∩ needed| / |needed|` — did we invoke the domains this problem needs? (process-conformance)
+- **R — routing precision** = `|invoked ∩ needed| / |invoked|` — did we avoid invoking domains it doesn't need? Penalizes over-routing. (process-conformance)
+- **A — acceptance rate** = fraction of `validation_results[*].accepted == true`. (self-report — suspect; the learned `W` audits whether it carries signal)
+- **F — output relevance** = mean cosine similarity between `embed(problem)` and `embed(each agent output)`, via `sentence-transformers` (`all-MiniLM-L6-v2`). Mean of per-output sims, NOT concatenated text (length-bias). (output-relevance — the load-bearing axis)
+
+**Decisions D1–D8 (all settled):**
+- **D1** — F = sentence-transformers cosine; keyword recall rejected (gameable + length bias); F computed Day-1 behind a swappable `embed()` seam.
+- **D2** — `expected_domains` = minimal sufficient set per problem (may be one); human-owned ground truth with per-domain reasoning; never derived from the routing logic.
+- **D3** — labels from LLM-judge (bulk) + human-verified sample; judge reads raw output only, never the metrics.
+- **D4** — label vocabulary `{excellent, acceptable, poor}`.
+- **D5** — three-axis taxonomy (process-conformance / self-report / output-relevance) + label `y`; the feature set must contain ≥1 output-grounded feature.
+- **D6** — curated suite of 15–30 cases is the source of *complete* rows; spans routing width (~6 single-domain, ~12 two-to-three, ~4 broad).
+- **D7** — log *every* run; A and F always compute; only C and R go `null` when no case; explicit `has_case: bool` flag so null never silently coerces to 0.0.
+- **D8** — `eval_runs/` gitignored; commit only `cases.py`; dataset regenerable / external.
+
+**Roadmap:** Step 1 log → Step 2 label → Step 3 train logistic regression → Step 4 split + confusion matrix → Step 5 calibrate + abstain → Step 6 retraining loop.
 
 ### `warlock/memory.py` ✓ done — shared state bus
 
@@ -149,8 +178,8 @@ class Orchestrator:
 - Supervisor is optional — Orchestrator runs without one if not passed
 - `decompose()`'s defensive strip removes ```json ``` fences if the model emits them
 - Empty decomposition (`[]`) is a silent no-op — Supervisor will handle in the consensus loop
-- **Known issue P0:** the return value of `self._supervisor.validate()` is discarded — no retry happens yet. This is the next thing to fix.
-- **Known issue P2:** `token_spend["orchestrator"] = {...}` overwrites instead of `+=`. Fine while `decompose()` runs once per `run()`, but will lose data once the retry loop calls it again.
+- A `TraceLogger` is created per run with a fresh UUID `run_id`; logs every validation event
+- **Current behavior:** on rejection the agent is retried once (blind retry — P0 fixed). The full reason-passing 3-iteration loop is not yet built.
 
 ### `warlock/supervisor.py` ✓ done — first version
 
@@ -160,17 +189,13 @@ class Supervisor:
 
     def validate(self, agent_name: str, task: str, output: str) -> bool:
         # reads problem_statement
-        # calls LLM with strict JSON-only ROLE prompt
+        # calls LLM with strict JSON-only ROLE prompt, temperature=0
         # writes validation_results[agent_name] = {accepted, reason}
-        # accumulates token_spend["supervisor"] via +=
+        # accumulates token_spend["supervisor"] via the current_tokens pattern
         # returns result["accepted"]
 ```
 
-**ROLE highlights:** two-axis evaluation (ON-DOMAIN, QUALITY), JSON-only response (`{"accepted": bool, "reason": str}`), defensive code-fence strip on parse.
-
-**Known issues:**
-- **P1:** `cache_read_tokens` may be `None` from the Anthropic SDK; `+=` will TypeError. Needs a `(value or 0)` guard.
-- **P3:** acceptance rate is non-deterministic across runs (saw 3/6 → 5/6 rejected with no code change). Need `temperature=0` on supervisor calls and tighter acceptance criteria.
+**ROLE highlights:** two-axis evaluation (ON-DOMAIN, QUALITY), JSON-only response (`{"accepted": bool, "reason": str}`), defensive code-fence strip on parse. P1 (`cache_read_tokens or 0` guard) and P3 (`temperature=0`) both fixed.
 
 ### `main.py` ✓ done — wires the triangle (no consensus yet)
 
@@ -178,48 +203,45 @@ Registers all six agents, instantiates the Supervisor, wires it into the Orchest
 
 ### `.gitignore` ✓ done
 
-Ignores all `*.txt` audit dumps and the `traces/` directory so validation logs and run dumps never get committed.
+Ignores all `*.txt` audit dumps, the `traces/` directory, and (new this session, D8) the `eval_runs/` dataset directory so raw agent outputs never get committed.
 
 ### `warlock/trace_logger.py` ✓ done — validation event recorder
 
-`TraceLogger` appends one JSONL record per validation event to `traces/<date>/<run_id>.jsonl`. Each record captures `run_id`, `timestamp`, `problem`, `agent`, `task`, `output`, `accepted`, `reason`, and `iteration`. Instantiated per run in `Orchestrator.run()` with a fresh `run_id` (UUID). This is the raw dataset for future fine-tuning of a cheaper supervisor model. Known gap: only iteration 0 is logged today — the blind retry's output is not yet recorded (fixed once the consensus loop lands).
+`TraceLogger` appends one JSONL record per validation event to `traces/<date>/<run_id>.jsonl`. Each record captures `run_id`, `timestamp`, `problem`, `agent`, `task`, `output`, `accepted`, `reason`, and `iteration`. Instantiated per run in `Orchestrator.run()` with a fresh `run_id` (UUID). This is the raw dataset for future fine-tuning of a cheaper supervisor model. Known gap: only iteration 0 is logged today — the blind retry's output is not yet recorded (fixed once the consensus loop lands). Note: this is *per-task forensic trace*, distinct from the eval track's planned *per-run feature row* (`warlock/eval/run_logger.py`) — different grain, different purpose.
 
 ---
 
-## Recently completed (prior session)
-
-- **P0 ✓** — `orchestrator.py` now captures `validate()` return value and retries the agent once on rejection.
-- **P1 ✓** — `cache_read_tokens or 0` guard added in both `supervisor.py` and `orchestrator.py`.
-- **P2 ✓** — Orchestrator token tracking now uses the `current_tokens` accumulation pattern instead of overwriting.
-- **P3 ✓** — `temperature=0` threaded through `LLMClient.complete()` and `AnthropicClient.complete()`; supervisor calls with it explicitly.
-- **Naming cleanup** — `token_spend` / `current_tokens` naming made consistent across both files.
-- **Explicit accumulation pattern** — replaced implicit mutation-via-alias with explicit read → add → write in both orchestrator and supervisor.
-- **`memory.patch()`** — new method added to `Memory` for writing nested keys without overwriting the parent dict.
-- **`TraceLogger`** — new `warlock/trace_logger.py`. Appends one JSONL record per validation event to `traces/<date>/<run_id>.jsonl`. Captures: `run_id`, `timestamp`, `problem`, `agent`, `task`, `output`, `accepted`, `reason`, `iteration`. This is the raw dataset for future supervisor fine-tuning.
-- **`CLAUDE.md`** — behavioral guidelines added (4 principles: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution).
-- **`EXAMPLES.md`** — annotated before/after examples for all four principles.
-
 ## What we are building next
 
-### Consensus loop
+### Eval Step 1 — log every run (active frontier)
 
-Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
-- Cap at 3 iterations per agent
-- Pass rejection reason back to agent on each retry so it can improve
-- Log every iteration via `TraceLogger` (currently only iteration 0 is logged)
-- After 3 failed iterations, tag output as `confidence: low` and continue
+We left off ready to build the evaluation logging pipeline. Two ways in; we agreed to draft the suite first so the human-owned ground truth can be corrected while the logger is built around it.
 
-### Clarifying questions — deferred to Phase 5
+**Immediate next action — draft the curated eval suite** (D6): 15–30 `EvalCase` entries spanning routing width, each with `id`, `problem`, minimal `expected_domains`, and per-domain reasoning comments (including *why* each excluded domain is excluded). Hand to the user for review/correction — the domain sets are ground truth and must not be decreed by the routing logic.
 
-Agents asking clarifying questions is valid professional behavior, but requires a user in the loop to answer them. Until Phase 5 (conversational loop), the supervisor correctly rejects this — there is no mechanism to resolve the questions. When Phase 5 ships, update supervisor ROLE acceptance criteria to explicitly allow clarifying questions.
+**Then build Step 1 code:**
+```
+warlock/eval/
+  metrics.py      # coverage, routing_precision, acceptance_rate, output_fidelity
+                  #   over real memory keys: task_decomposition, validation_results, agent_outputs
+                  #   output_fidelity calls embed() (sentence-transformers all-MiniLM-L6-v2)
+                  #   coverage/routing_precision return None when expected_domains is absent
+  run_logger.py   # after a run: compute A,F always; C,R only if a case is given; set has_case;
+                  #   append one JSON line to eval_runs/<date>.jsonl; label=null
+  cases.py        # the reviewed EvalCase suite (the only eval file committed to git)
+```
+- `uv add sentence-transformers` is the one new dependency.
+- The logger is a **read-only observer** of memory — it never writes back to the bus.
+- **Verify gate:** run on 2–3 problems → every row has in-range `[A,F]`; a cased single-domain problem routed correctly scores `C=R=1.0` with `has_case=true`; an uncased run gives `C=R=null, has_case=false` with A/F populated; raw outputs captured; `label=null`.
 
-### Escape valve
+### Phase 4 consensus loop (still open, from prior sessions)
 
-After 3 iterations without consensus, emit best-effort output tagged with a confidence score. Tag the run as `consensus=partial`.
-
-### Parallel multi-agent run
-
-Run independent domains concurrently once the retry loop is stable.
+Not this session's focus but not abandoned. Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
+- Cap at 3 iterations per agent; pass the rejection **reason** back to the agent on each retry so it can improve.
+- Log every iteration via `TraceLogger` (currently only iteration 0 is logged).
+- After 3 failed iterations, tag output as `confidence: low` and continue (escape valve, `consensus=partial`).
+- Parallel multi-agent run once the retry loop is stable.
+- Clarifying questions deferred to Phase 5 (needs a user in the loop).
 
 ---
 
@@ -245,21 +267,23 @@ warlock/
 ├── providers/
 │   ├── __init__.py        ✓ done
 │   └── anthropic.py       ✓ done — AnthropicClient, cache_control on system prompt
-└── agents/
-    ├── __init__.py        ✓ done
-    ├── data_engineer.py   ✓ done
-    ├── ml_engineer.py     ✓ done
-    ├── analytics.py       ✓ done
-    ├── devops_mlops.py    ✓ done
-    ├── data_scientist.py  ✓ done
-    └── software_dev.py    ✓ done
+├── agents/
+│   ├── __init__.py        ✓ done
+│   ├── data_engineer.py   ✓ done
+│   ├── ml_engineer.py     ✓ done
+│   ├── analytics.py       ✓ done
+│   ├── devops_mlops.py    ✓ done
+│   ├── data_scientist.py  ✓ done
+│   └── software_dev.py    ✓ done
+└── eval/                  ← next: Step 1 logging (metrics.py, run_logger.py, cases.py)
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
 main.py                     ✓ done — six agents + supervisor wired
-.gitignore                  ✓ done — ignores *.txt and traces/
+.gitignore                  ✓ done — ignores *.txt, traces/, eval_runs/
 pyproject.toml
-                            ← next: consensus loop — replace single blind retry with 3-iteration reason-passing loop
+.specs/eval_ml_plan.md      ✓ done — evaluation system design, D1–D8 settled
+                            ← next: draft curated eval suite, then build warlock/eval/ Step 1
 ```
 
 ---

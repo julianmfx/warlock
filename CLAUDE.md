@@ -47,6 +47,8 @@ Four layers, built in order:
 
 See `plan.md` for the phased checklist. Phases 1–3 are complete. Phase 4 is in progress: `Supervisor` ships (validates outputs, tracks tokens/timing); the consensus retry loop, escape valve, and parallel multi-agent run are still open. Known P0–P3 issues are tracked in `plan.md` under Phase 4.
 
+A separate **evaluation track** is fully designed in `.specs/eval_ml_plan.md`: score each run on `[C, R, A, F]` (coverage, routing precision, acceptance rate, output relevance) and turn a hand-tuned heuristic into a learned classifier once labeled runs exist. Decisions D1–D8 are settled; Step 1 (per-run logging into `warlock/eval/`) is the next action there.
+
 ## Behavioral guidelines
 
 Reduce common LLM coding mistakes. These guidelines bias toward caution over speed — use judgment on trivial tasks. See `EXAMPLES.md` for annotated before/after examples of each principle.

@@ -151,6 +151,24 @@ The triangle activates on:
 
 ---
 
+## Evaluation Track (parallel to Phases 4–6)
+
+Designed in full in `.specs/eval_ml_plan.md`. Measures whether a run's *process* and *output* are correct, and evolves from a hand-tuned heuristic into a learned classifier as labeled runs accumulate.
+
+- Per-run feature vector `x = [C, R, A, F]`: **C** coverage (routing recall), **R** routing precision, **A** supervisor acceptance rate, **F** output relevance (sentence-transformers cosine, problem vs. mean agent output).
+- Three honest feature axes — process-conformance (C, R), self-report (A), output-relevance (F) — plus the ground-truth label `y ∈ {excellent, acceptable, poor}`. Rule: the set must contain ≥1 output-grounded feature (F).
+- Decisions **D1–D8** settled (embedding source, minimal-domain ground truth, label source, taxonomy, curated 15–30 case suite, log-every-run with `has_case` flag + null-only-C/R, gitignored dataset).
+
+Steps:
+- [ ] **Step 1 — log every run** → `warlock/eval/{metrics,run_logger,cases}.py`, embedding-F, `eval_runs/<date>.jsonl` (gitignored). ← next action
+- [ ] Step 2 — label runs (LLM-judge bulk + human-verified sample)
+- [ ] Step 3 — train multinomial logistic regression; read `clf.coef_`
+- [ ] Step 4 — honest split + confusion matrix
+- [ ] Step 5 — calibrate + abstain branch
+- [ ] Step 6 — retraining loop
+
+---
+
 ## Spec Review Protocol
 
 Every time progress is made on this project — after any phase step, agent build, or architectural decision — do the following:
