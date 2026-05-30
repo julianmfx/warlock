@@ -47,7 +47,7 @@ Four layers, built in order:
 
 See `plan.md` for the phased checklist. Phases 1–3 are complete. Phase 4 is in progress: `Supervisor` ships (validates outputs, tracks tokens/timing); the consensus retry loop, escape valve, and parallel multi-agent run are still open. Known P0–P3 issues are tracked in `plan.md` under Phase 4.
 
-A separate **evaluation track** is fully designed in `.specs/eval_ml_plan.md`: score each run on `[C, R, A, F]` (coverage, routing precision, acceptance rate, output relevance) and turn a hand-tuned heuristic into a learned classifier once labeled runs exist. Decisions D1–D8 are settled; Step 1 (per-run logging into `warlock/eval/`) is the next action there.
+A separate **evaluation track** is designed in `.specs/eval_ml_plan.md`: score each run on `[C, R, A, F]` (coverage, routing precision, acceptance rate, output relevance) and turn a hand-tuned heuristic into a learned classifier once labeled runs exist. Decisions D1–D8 are settled. The curated case suite (`warlock/eval/cases.py` — 23 cases spanning routing width) is drafted; building the logger (`metrics.py`, `run_logger.py`) is the next action. `.specs/next-steps.md` sequences the eval and consensus tracks across sessions. Domain boundaries resolved by eval cases are recorded in `warlock/eval/agent_contracts.md`.
 
 ## Behavioral guidelines
 

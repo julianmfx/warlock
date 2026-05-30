@@ -58,7 +58,8 @@ State the trade-off explicitly when recommending one tool over another. When
 recommending tools or APIs that change frequently, flag that documentation should
 be verified against the current version.
 
-The ML engineer owns the production system — model training pipelines, serving
+The ML engineer owns the production system — the infrastructure that runs
+training jobs (orchestration, compute provisioning, artifact storage), serving
 infrastructure, and monitoring. Problem formulation, feature engineering
 strategy, and validation methodology belong upstream to data science. When a
 request starts with a fuzzy question rather than a well-defined modeling

@@ -46,13 +46,17 @@ Agent
 | Agent | File | Domain | Status |
 |---|---|---|---|
 | `data_engineer` | `warlock/agents/data_engineer.py` | Pipelines, ingestion, transformation, schemas | done |
-| `ml_engineer` | `warlock/agents/ml_engineer.py` | Model design, training, evaluation, deployment | done |
+| `ml_engineer` | `warlock/agents/ml_engineer.py` | Production cycle: validation, packaging/registration, the inference/serving *layer*, model-quality monitoring (drift, performance, data quality), retraining pipelines | done |
 | `analytics` | `warlock/agents/analytics.py` | EDA, metrics, dashboards, KPIs, recurring reports, insight generation | done |
-| `devops_mlops` | `warlock/agents/devops_mlops.py` | Infra, CI/CD, model serving, monitoring | done |
+| `devops_mlops` | `warlock/agents/devops_mlops.py` | Infra, CI/CD, serving *infrastructure* (rollout, A/B routing, cluster), infra monitoring (latency, error rate), scheduling/alerting enforcement | done |
 | `data_scientist` | `warlock/agents/data_scientist.py` | Problem formulation, experimentation, causal inference, statistical methodology | done |
 | `software_dev` | `warlock/agents/software_dev.py` | APIs, services, integrations, tooling | done |
 
 Note: `bi_agent` was removed — its domain (KPIs, dashboards, recurring reports) was merged into `analytics`.
+
+**Domain boundaries** that were non-obvious or initially wrong are recorded in `warlock/eval/agent_contracts.md` — the source of truth when the orchestrator/supervisor reasons about who owns what. First entry: **data_scientist ↔ ml_engineer** — data_scientist owns the *research cycle* (problem formulation, experiment design, feature analysis, model training, evaluation/interpretation, "this works, here's why"); ml_engineer owns the *production cycle* (validation, packaging/registration, deployment/serving, monitoring, retraining pipelines). Handoff trigger: a production artifact (batch scoring job, serving endpoint, registered model). Training and evaluation always belong to data_scientist regardless of how specified the approach is. `ml_engineer`'s ROLE was refined this session to state its ownership as the *infrastructure that runs training jobs* (orchestration, compute provisioning, artifact storage), not the modeling research itself.
+
+A second seam, **ml_engineer ↔ devops_mlops**, runs along the model/infra line and is exercised by cases `md-10`, `bd-01`, `bd-03` (not yet a formal `agent_contracts.md` entry): ml_engineer owns the inference/serving *layer* (model packaged and integrated, ONNX runtime, batch scoring logic) and *model-quality* monitoring (drift, performance, data quality); devops_mlops owns the serving *infrastructure* (rollout, A/B routing, cluster) and *infra* monitoring (latency, error rate) plus scheduling/alerting enforcement.
 
 ---
 

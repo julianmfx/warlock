@@ -17,16 +17,16 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-**Design only — no application code shipped, no new commits.** We designed the evaluation system end to end and wrote it to `.specs/eval_ml_plan.md`. The work started from a question — "how do I mathematically evaluate whether a run's process and output are correct?" — and went through several sharpening passes:
+**Drafted the curated eval suite and formalized the first domain-boundary contract.** This is Session 1 of the sequence laid out in `.specs/next-steps.md` (D6 of the eval plan).
 
-1. Started from a softmax-over-quality-classes idea, then named it honestly: it's a **heuristic scoring function**, not a trained classifier, until labels exist.
-2. Designed the path to **turn the heuristic into real ML** — same softmax, but learned weights `W, b` via multinomial logistic regression once labeled runs accumulate.
-3. Caught and fixed the **circularity** problem: C and R only measure *process conformance* (did routing match expectation), never quality. Reframed the feature set into three honest axes and required at least one output-grounded feature.
-4. Settled eight decisions **D1–D8** (see the eval plan), including the two that were blocking "log every run": what to do with uncased runs (D7 — log everything, null only C/R, add `has_case` flag) and dataset storage (D8 — gitignore `eval_runs/`).
+1. **Sequenced the work.** Committed `.specs/next-steps.md`, which orders the two open tracks — the eval pipeline and the Phase 4 consensus loop — under a single guiding principle: **measure before you improve.** Build the eval logger first, capture a baseline of today's behavior, then prove the consensus loop by moving that baseline. The two tracks are coupled by measurement at three touch points (acceptance rate + iteration count, trace-logger completeness, and the eventual confidence-score fusion).
+2. **Drafted `warlock/eval/cases.py`** — 23 `EvalCase` entries spanning routing width: 6 single-domain (`sd-*`), 14 two-to-three-domain (`md-*`), 3 broad (`bd-*`). Each has a minimal `expected_domains` set and a `notes` field giving per-domain inclusion *and* exclusion reasoning. The exclusion reasoning is deliberate — it makes the over-routing cases (which exercise the R / routing-precision metric) explicit. Ground truth is human-owned; pending the human's review/correction pass.
+3. **Created `warlock/eval/agent_contracts.md`** — the settled-boundary source of truth. First entry resolves **data_scientist ↔ ml_engineer**: data_scientist owns the research cycle, ml_engineer owns the production cycle, and the handoff trigger is a production artifact. Training and evaluation always belong to data_scientist regardless of how specified the approach is.
+4. **Refined `warlock/agents/ml_engineer.py`** — one ROLE edit clarifying that ml_engineer owns the *infrastructure that runs training jobs* (orchestration, compute provisioning, artifact storage), not the modeling research, keeping the agent prompt consistent with the new contract.
 
-Uncommitted at session close: new `.specs/eval_ml_plan.md`, and `.gitignore` gained `eval_runs/` (the D8 guard, added before any logger code).
+Uncommitted at session close: `warlock/agents/ml_engineer.py` (ROLE refinement) and the untracked `warlock/eval/` directory (`__init__.py`, `cases.py`, `agent_contracts.md`). `.specs/next-steps.md` was committed (`1916d00`).
 
-The Phase 4 consensus loop remains open from prior sessions — not abandoned, just not this session's focus. The active frontier is now eval **Step 1**.
+The Phase 4 consensus loop remains open from prior sessions — sequenced as Session 4 in `next-steps.md`, after the logger and baseline. The active frontier is now eval **Session 2 — build the logger**.
 
 ---
 
@@ -42,9 +42,9 @@ Public-facing entry point. Project overview, stack, run command, triangle archit
 
 ### `CLAUDE.md` ✓ done
 
-Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`.
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`, the curated suite in `warlock/eval/cases.py`, the session sequencing in `.specs/next-steps.md`, and the boundary contracts in `warlock/eval/agent_contracts.md`.
 
-### `.specs/eval_ml_plan.md` ✓ done — evaluation system design (this session)
+### `.specs/eval_ml_plan.md` ✓ done — evaluation system design
 
 The full step-by-step plan to evaluate Warlock runs and evolve the evaluator from heuristic to learned model. Not code yet — the agreed design Step 1 builds against.
 
@@ -60,11 +60,22 @@ The full step-by-step plan to evaluate Warlock runs and evolve the evaluator fro
 - **D3** — labels from LLM-judge (bulk) + human-verified sample; judge reads raw output only, never the metrics.
 - **D4** — label vocabulary `{excellent, acceptable, poor}`.
 - **D5** — three-axis taxonomy (process-conformance / self-report / output-relevance) + label `y`; the feature set must contain ≥1 output-grounded feature.
-- **D6** — curated suite of 15–30 cases is the source of *complete* rows; spans routing width (~6 single-domain, ~12 two-to-three, ~4 broad).
+- **D6** — curated suite of 15–30 cases is the source of *complete* rows; spans routing width (~6 single-domain, ~12 two-to-three, ~4 broad). **Drafted this session as `warlock/eval/cases.py`.**
 - **D7** — log *every* run; A and F always compute; only C and R go `null` when no case; explicit `has_case: bool` flag so null never silently coerces to 0.0.
 - **D8** — `eval_runs/` gitignored; commit only `cases.py`; dataset regenerable / external.
 
 **Roadmap:** Step 1 log → Step 2 label → Step 3 train logistic regression → Step 4 split + confusion matrix → Step 5 calibrate + abstain → Step 6 retraining loop.
+
+### `.specs/next-steps.md` ✓ done — session sequencing for both open tracks (this session)
+
+Orders the eval pipeline and the Phase 4 consensus loop into startable-cold sessions, under the principle **measure before you improve**. A quality-improvement mechanism built without a quality measurement is unfalsifiable, so the logger is built first and the consensus loop is proven by moving a captured baseline.
+
+**The two tracks synchronize at three touch points:**
+1. **Acceptance rate `A` + iteration count** — the eval row logs the run's iteration/retry count from day one (0-or-1 today) so the *same* logger captures the richer signal once the consensus loop lands, keeping baseline-vs-after apples-to-apples.
+2. **Trace-logger completeness** — `TraceLogger` records only iteration 0 today; the consensus loop closes that gap by logging every iteration.
+3. **Confidence score fusion** — once the eval *classifier* is trained (Step 3+), its `P(excellent/acceptable/poor)` replaces the hand-set `confidence: low` tag in the escape valve. This is where the two tracks merge.
+
+**Ordered sequence:** S1 draft suite → S2 build logger → S3 capture baseline → S4 build consensus loop → S5 re-measure (prove the loop earned its token cost; a flat-quality / 3×-token result is a valid negative result) → S6+ label → train → calibrate → fuse.
 
 ### `warlock/memory.py` ✓ done — shared state bus
 
@@ -138,9 +149,9 @@ Provider-agnostic base class. Each `run()` reads `problem_statement`, calls `cli
 
 Production-grade ROLE: pipelines, ingestion, transformation, schemas. Cost-aware across storage/compute/egress/dev-time/on-call/lock-in. Anti-sycophancy rule, testing as test coverage not dashboards, GitOps for pipeline code. Holds the line on enforcement when analytics owns the metric definition.
 
-### `warlock/agents/ml_engineer.py` ✓ done — machine learning specialist
+### `warlock/agents/ml_engineer.py` ✓ done — machine learning specialist (refined this session)
 
-ROLE: do-we-need-ML gate, baseline-before-complexity, evaluation-before-deployment, reproducibility, fairness and disparate-impact surfacing, pushback handling, 18-month maintainability question, monitoring as a pre-deployment requirement. Splits monitoring with MLOps: model-quality thresholds here, enforcement infra there.
+ROLE: do-we-need-ML gate, baseline-before-complexity, evaluation-before-deployment, reproducibility, fairness and disparate-impact surfacing, pushback handling, 18-month maintainability question, monitoring as a pre-deployment requirement. Splits monitoring with MLOps: model-quality thresholds here, enforcement infra there. **Refined this session:** the ownership statement now reads that ml_engineer owns the *infrastructure that runs training jobs* (orchestration, compute provisioning, artifact storage), serving infrastructure, and monitoring — while problem formulation, feature-engineering strategy, and validation methodology belong upstream to data science. This keeps the prompt consistent with the data_scientist ↔ ml_engineer contract in `warlock/eval/agent_contracts.md`.
 
 ### `warlock/agents/analytics.py` ✓ done — analytics + BI specialist
 
@@ -157,6 +168,44 @@ ROLE: predictive/causal/descriptive distinction, unit of analysis, data-generati
 ### `warlock/agents/software_dev.py` ✓ done — software engineering specialist
 
 ROLE: interface-before-implementation, async/event-driven delivery guarantees (at-most-once/at-least-once/exactly-once + DLQ), boundary definition, backwards compatibility discipline, distributed-systems failure modes, contract testing at boundaries, database hazards (N+1, long transactions, pool exhaustion, migrations), implicit schema risk, named handoff partners.
+
+### `warlock/eval/agent_contracts.md` ✓ done — settled domain-boundary decisions (this session)
+
+The source of truth when the orchestrator or supervisor needs to reason about who owns what. Each entry is a boundary that was *explicitly decided* — not inferred from code, not assumed from domain names — and a new entry is added whenever an eval case surfaces a non-obvious or initially-wrong domain split.
+
+First entry — **data_scientist ↔ ml_engineer** (decided in case `md-11`):
+- data_scientist owns the **research cycle**: problem formulation, experiment design, feature analysis, model training, evaluation and interpretation, "this works, here's why."
+- ml_engineer owns the **production cycle**: production validation, packaging and registration, deployment and serving, monitoring (drift / performance / data quality), retraining pipelines.
+- **Handoff trigger:** a production artifact (batch scoring job, serving endpoint, registered model). The moment the output is destined for production, ml_engineer takes over.
+- **Key exclusions:** training a model is not ml_engineer unless the approach is fully specified and the research question is closed; feature-importance analysis is interpretation (data_scientist); operational retraining on a fixed schedule is production maintenance (ml_engineer + devops_mlops).
+- **Edge cases:** "train and deploy" → split it on whether a research question is still open; experiment-tracking *tooling* is ml_engineer while the *experiments* are data_scientist.
+
+### `warlock/eval/cases.py` ✓ done — curated eval suite (this session)
+
+The human-owned ground truth the eval logger will measure routing against (D2, D6). Pending the human's review/correction pass on the domain sets.
+
+```python
+@dataclass
+class EvalCase:
+    id: str
+    problem: str
+    expected_domains: list[str]
+    notes: str = ""
+
+SINGLE_DOMAIN: list[EvalCase] = [...]   # sd-01 … sd-06  (6)
+MULTI_DOMAIN:  list[EvalCase] = [...]   # md-01 … md-14  (14)
+BROAD:         list[EvalCase] = [...]   # bd-01 … bd-03  (3)
+ALL_CASES = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD          # 23 total
+```
+
+- **23 cases** spanning routing width — 6 single-domain, 14 two-to-three-domain, 3 broad (the broad cases route 4–6 domains).
+- Each case's `notes` gives per-domain **inclusion and exclusion** reasoning. The exclusion reasoning is what makes the R (routing-precision / over-routing) metric measurable — every domain appears as *needed* in some cases and *explicitly not-needed* in others.
+- Problems are written with the scope-narrowing language ("no downstream transformations", "no CI/CD pipeline", "model already trained and signed off") that forces the minimal-domain ground truth.
+- Boundary-sensitive cases (`md-09`, `md-10`, `md-11`, `md-13`, `bd-01`) carry inline notes on *why* a domain was included or excluded, several of them exercising the data_scientist ↔ ml_engineer contract.
+
+### `warlock/eval/__init__.py` ✓ done
+
+Empty package file for the eval module.
 
 ### `warlock/orchestrator.py` ✓ done — decompose, route, time, supervise
 
@@ -203,7 +252,7 @@ Registers all six agents, instantiates the Supervisor, wires it into the Orchest
 
 ### `.gitignore` ✓ done
 
-Ignores all `*.txt` audit dumps, the `traces/` directory, and (new this session, D8) the `eval_runs/` dataset directory so raw agent outputs never get committed.
+Ignores all `*.txt` audit dumps, the `traces/` directory, and (D8) the `eval_runs/` dataset directory so raw agent outputs never get committed.
 
 ### `warlock/trace_logger.py` ✓ done — validation event recorder
 
@@ -213,35 +262,46 @@ Ignores all `*.txt` audit dumps, the `traces/` directory, and (new this session,
 
 ## What we are building next
 
-### Eval Step 1 — log every run (active frontier)
+### Eval Session 2 — build the logger (active frontier)
 
-We left off ready to build the evaluation logging pipeline. Two ways in; we agreed to draft the suite first so the human-owned ground truth can be corrected while the logger is built around it.
+The curated suite (`cases.py`) is drafted; next is the logging code from `eval_ml_plan.md` Step 1, sequenced as Session 2 in `next-steps.md`. The logger is a **read-only observer** of memory — it never writes back to the bus.
 
-**Immediate next action — draft the curated eval suite** (D6): 15–30 `EvalCase` entries spanning routing width, each with `id`, `problem`, minimal `expected_domains`, and per-domain reasoning comments (including *why* each excluded domain is excluded). Hand to the user for review/correction — the domain sets are ground truth and must not be decreed by the routing logic.
+**First — `uv add sentence-transformers`** (the one new dependency).
 
-**Then build Step 1 code:**
+**Then build:**
 ```
 warlock/eval/
   metrics.py      # coverage, routing_precision, acceptance_rate, output_fidelity
                   #   over real memory keys: task_decomposition, validation_results, agent_outputs
-                  #   output_fidelity calls embed() (sentence-transformers all-MiniLM-L6-v2)
+                  #   output_fidelity calls embed() (sentence-transformers all-MiniLM-L6-v2),
+                  #     mean of per-output cosine sims vs. embed(problem) — NOT concatenated text
                   #   coverage/routing_precision return None when expected_domains is absent
   run_logger.py   # after a run: compute A,F always; C,R only if a case is given; set has_case;
+                  #   capture the run's iteration/retry count (forward-compat, touch point 1);
                   #   append one JSON line to eval_runs/<date>.jsonl; label=null
-  cases.py        # the reviewed EvalCase suite (the only eval file committed to git)
 ```
-- `uv add sentence-transformers` is the one new dependency.
-- The logger is a **read-only observer** of memory — it never writes back to the bus.
-- **Verify gate:** run on 2–3 problems → every row has in-range `[A,F]`; a cased single-domain problem routed correctly scores `C=R=1.0` with `has_case=true`; an uncased run gives `C=R=null, has_case=false` with A/F populated; raw outputs captured; `label=null`.
 
-### Phase 4 consensus loop (still open, from prior sessions)
+- `metrics.py` reads the real memory keys. `coverage = |invoked ∩ needed| / |needed|`, `routing_precision = |invoked ∩ needed| / |invoked|` (both `None` when no case), `acceptance_rate` over `validation_results`, `output_fidelity` via the swappable `embed()` seam.
+- `run_logger.py` is forward-compatible: it logs the iteration/retry count from day one (0-or-1 today) so the same logger captures the richer signal once the consensus loop lands.
 
-Not this session's focus but not abandoned. Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
+**Verify gate (from `eval_ml_plan.md` / `next-steps.md` S2):** run on 2–3 problems →
+- every row has in-range `[A, F]`;
+- a **cased single-domain** problem routed correctly scores `C=R=1.0`, `has_case=true`;
+- an **uncased** run gives `C=R=null`, `has_case=false`, with A/F populated and in range;
+- raw outputs captured; `label=null`;
+- a hand-check of one row's arithmetic matches.
+
+After the logger: **Session 3 — capture the baseline** (run the full suite through today's orchestrator, record baseline means of A, F, and label distribution — the targets the consensus loop must later beat).
+
+### Phase 4 consensus loop (Session 4 in next-steps.md — after baseline)
+
+Not the immediate frontier, but next after the baseline. Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
 - Cap at 3 iterations per agent; pass the rejection **reason** back to the agent on each retry so it can improve.
-- Log every iteration via `TraceLogger` (currently only iteration 0 is logged).
-- After 3 failed iterations, tag output as `confidence: low` and continue (escape valve, `consensus=partial`).
+- Log every iteration via `TraceLogger` (currently only iteration 0 is logged — touch point 2).
+- After 3 failed iterations, tag output as `confidence: low`, `consensus=partial`, and continue (escape valve).
 - Parallel multi-agent run once the retry loop is stable.
 - Clarifying questions deferred to Phase 5 (needs a user in the loop).
+- **Session 5 — re-measure:** re-run the suite, compare to the Session 3 baseline. Expect `A` to rise, `F`/labels to hold or improve, and token cost recorded alongside — a flat-quality / 3×-token result is a valid negative result, not a failure.
 
 ---
 
@@ -270,12 +330,17 @@ warlock/
 ├── agents/
 │   ├── __init__.py        ✓ done
 │   ├── data_engineer.py   ✓ done
-│   ├── ml_engineer.py     ✓ done
+│   ├── ml_engineer.py     ✓ done — ROLE refined this session (training-infra ownership)
 │   ├── analytics.py       ✓ done
 │   ├── devops_mlops.py    ✓ done
 │   ├── data_scientist.py  ✓ done
 │   └── software_dev.py    ✓ done
-└── eval/                  ← next: Step 1 logging (metrics.py, run_logger.py, cases.py)
+└── eval/
+    ├── __init__.py        ✓ done
+    ├── cases.py           ✓ done — 23 EvalCase suite (6 sd / 14 md / 3 bd)
+    ├── agent_contracts.md ✓ done — settled domain boundaries (ds ↔ mle)
+    ├── metrics.py         ← next: coverage, routing_precision, acceptance_rate, output_fidelity
+    └── run_logger.py      ← next: read-only per-run feature row → eval_runs/<date>.jsonl
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
@@ -283,7 +348,8 @@ main.py                     ✓ done — six agents + supervisor wired
 .gitignore                  ✓ done — ignores *.txt, traces/, eval_runs/
 pyproject.toml
 .specs/eval_ml_plan.md      ✓ done — evaluation system design, D1–D8 settled
-                            ← next: draft curated eval suite, then build warlock/eval/ Step 1
+.specs/next-steps.md        ✓ done — session sequencing for eval + consensus tracks
+                            ← next: uv add sentence-transformers, then build metrics.py + run_logger.py
 ```
 
 ---
