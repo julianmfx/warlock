@@ -94,7 +94,7 @@ A = (1/n) Σᵢ 𝟙[ validation_results[domainᵢ]["accepted"] ]
 
 **F — Output fidelity = embedding cosine similarity.** See D1 for why keyword recall is rejected.
 ```
-F = mean_i [ cos( embed(problem), embed(agent_outputs[i]) ) ]
+F = mean_i [ cos( embed(task_decomposition[i].task), embed(agent_outputs[i]) ) ]
 ```
 Honesty caveat: cosine similarity measures *relevance / topicality*, not *correctness*. On-topic ≠ right. F is the best **cheap, automatic** quality proxy; the actual ground truth is the label `y`. F's job is to be the one feature *grounded in the output text* — without it, the feature set can only ever learn a process-conformance detector (D5).
 
@@ -107,7 +107,7 @@ Keyword-substring recall is rejected for **two** reasons:
 1. **Gameable** — "model" matches "remodel," "models"; a synthesis that name-drops keywords without solving anything scores high.
 2. **Length bias (fatal)** — concatenating N agent outputs means more text → more keyword hits → F rises with the *number of agents invoked* → **F gets contaminated by C through sheer text volume.** That makes it partly re-measure coverage, not relevance.
 
-Fix: F = cosine similarity between the problem embedding and the **mean of per-agent output embeddings** (average per-output similarities; do **not** concatenate). Magnitude-normalized, so it's length-invariant and needs no synthesis step. If a real synthesis ships later, F's source migrates to it; the feature name doesn't change. **Embedding-F is a Step 1 requirement, not a later upgrade** — it is the only output-grounded feature, so without it the Day-1 dataset has no honest quality axis.
+Fix: F = the **mean of per-agent cosine similarities** between each agent's *assigned task* (`task_decomposition[i].task`) and that agent's output (average per-output similarities; do **not** concatenate). Measuring each output against its own assigned task — rather than against the whole problem — is a sharper per-agent relevance signal: it asks "did this agent answer the task it was given?", which a single broad problem embedding would blur across agents. Magnitude-normalized, so it's length-invariant and needs no synthesis step. **Embedding-F is a Step 1 requirement, not a later upgrade** — it is the only output-grounded feature, so without it the Day-1 dataset has no honest quality axis.
 
 **Embedding source: `sentence-transformers`, local *(decided)*.** No API key, no second vendor, free to run on every row — the Anthropic API has no embeddings endpoint, so this avoids adding one. Default model `all-MiniLM-L6-v2` (384-dim, small, fast, general-purpose); revisit only if relevance signal proves too coarse. Cost: one new dependency (`uv add sentence-transformers`) + a one-time model download. Wrap it behind a small `embed(text) -> list[float]` seam in `metrics.py` so the provider stays swappable.
 
@@ -120,7 +120,7 @@ The source of **cased** rows (complete `[C, R, A, F]`) is a fixed, hand-authored
 ### D7 — No-case runs: log every run, null only what's truly uncomputable *(decided)*
 "Log every run" is literally true. A run with no case still produced real, expensive, irreproducible data — and three of four signals don't need a case:
 - **A** — from `validation_results` only. Computed always.
-- **F** — cosine of outputs vs. the *problem statement* (from memory, not the case). Computed always.
+- **F** — cosine of each output vs. its *assigned task* (from `task_decomposition` in memory, not the case). Computed always.
 - **C, R** — the *only* two needing `expected_domains`. These go `null` when no case exists.
 
 So an uncased run blanks exactly two fields, not the row. The row carries an explicit **`has_case: bool`** so the absence is queryable and never silently coerced to `0.0` (which would poison Step 3). Consumers filter: `has_case == true` is the trainable set for any C/R model; *all* rows are the corpus for A/F-only analysis and for labeling. **Never let `null` carry meaning alone — pair it with the flag.**

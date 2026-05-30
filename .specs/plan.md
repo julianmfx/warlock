@@ -155,7 +155,7 @@ The triangle activates on:
 
 Designed in full in `.specs/eval_ml_plan.md`. Measures whether a run's *process* and *output* are correct, and evolves from a hand-tuned heuristic into a learned classifier as labeled runs accumulate.
 
-- Per-run feature vector `x = [C, R, A, F]`: **C** coverage (routing recall), **R** routing precision, **A** supervisor acceptance rate, **F** output relevance (sentence-transformers cosine, problem vs. mean agent output).
+- Per-run feature vector `x = [C, R, A, F]`: **C** coverage (routing recall), **R** routing precision, **A** supervisor acceptance rate, **F** output relevance (sentence-transformers cosine, each agent's assigned task vs. its output, averaged).
 - Three honest feature axes — process-conformance (C, R), self-report (A), output-relevance (F) — plus the ground-truth label `y ∈ {excellent, acceptable, poor}`. Rule: the set must contain ≥1 output-grounded feature (F).
 - Decisions **D1–D8** settled (embedding source, minimal-domain ground truth, label source, taxonomy, curated 15–30 case suite, log-every-run with `has_case` flag + null-only-C/R, gitignored dataset).
 
@@ -163,9 +163,10 @@ Session sequencing for both this track and the Phase 4 consensus loop lives in `
 
 Steps:
 - [ ] **Step 1 — log every run** → `warlock/eval/{metrics,run_logger,cases}.py`, embedding-F, `eval_runs/<date>.jsonl` (gitignored).
-  - [x] Curated case suite drafted — `warlock/eval/cases.py`, 23 `EvalCase` entries (6 single-domain, 14 two-to-three-domain, 3 broad), each with minimal `expected_domains` and per-domain inclusion/exclusion reasoning (D6). Pending human review/correction of the ground-truth domain sets.
-  - [x] Domain-boundary disputes surfaced by cases recorded in `warlock/eval/agent_contracts.md` — first entry resolves data_scientist ↔ ml_engineer (research cycle vs. production cycle; handoff trigger = a production artifact).
-  - [ ] Build the logger — `metrics.py` (`coverage`, `routing_precision`, `acceptance_rate`, `output_fidelity` over real memory keys; embedding-F via swappable `embed()`), `run_logger.py` (read-only observer; A/F always, C/R only with a case, `has_case` flag, iteration count, append to `eval_runs/<date>.jsonl`). ← next action
+  - [x] Curated case suite drafted — `warlock/eval/cases.py`, 24 `EvalCase` entries (6 single-domain, 15 two-to-three-domain, 3 broad), each with minimal `expected_domains` and per-domain inclusion/exclusion reasoning (D6). Pending human review/correction of the ground-truth domain sets.
+  - [x] Domain-boundary disputes surfaced by cases recorded in `warlock/eval/agent_contracts.md` — three entries: data_scientist ↔ ml_engineer (research vs. production cycle; handoff = a production artifact), ml_engineer ↔ devops_mlops (model vs. infra monitoring), data_engineer ↔ devops_mlops (dbt project readiness vs. workflow files; from md-15).
+  - [x] Build the logger — `metrics.py` (`coverage`, `routing_precision`, `acceptance_rate`, `output_fidelity` over real memory keys; embedding-F via the `_embedding()` seam using `all-MiniLM-L6-v2`), `run_logger.py` (read-only observer; A/F always, C/R only with a case, `has_case` flag, `iteration` count, append to `eval_runs/<date>.jsonl`, `label=null`). `log_run(m)` wired into `main.py`. Deps added: `numpy`, `sentence-transformers`.
+  - [ ] **Capture the baseline** (Session 3) — run the full 24-case suite through today's orchestrator, record baseline means of A, F, and the label distribution. This doubles as the Step-1 verify gate. `main.py` currently runs one cased single-domain smoke test (sd-05). ← next action
 - [ ] Step 2 — label runs (LLM-judge bulk + human-verified sample)
 - [ ] Step 3 — train multinomial logistic regression; read `clf.coef_`
 - [ ] Step 4 — honest split + confusion matrix

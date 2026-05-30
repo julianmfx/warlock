@@ -98,6 +98,7 @@ Once the baseline/loop comparison is in hand, continue the eval roadmap from `ev
 - **Iteration count as a feature vs. metadata.** Logged from Session 2 for forward-compat. Whether it becomes a 5th model feature (a process-conformance signal: how much retrying a run needed) is deferred until after Step 3 shows whether it predicts quality. Out of scope for D1–D8 as currently written.
 - **Confidence calibration check.** Once labels exist, verify the escape valve's `confidence: low` tag actually correlates with worse `y`. If "low confidence" runs are not measurably worse, the tag is dishonest and needs rework — another thing eval makes testable.
 - **Labeling depth for the baseline (Session 3).** Process-only baseline (`A`, `F`) is enough to start; label depth can grow over later sessions without blocking the consensus-loop comparison on `A`.
+- **Agent clarification loop.** Agents may produce questions instead of deliverables; the orchestrator should surface these to the user, collect answers, and re-run the agent until satisfied. When this lands: (1) F and A must be computed on the final output only, not on intermediate question rounds; (2) `iteration` in the eval row should reflect real clarification round depth, not just supervisor retry count.
 
 ---
 
