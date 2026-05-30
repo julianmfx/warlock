@@ -46,4 +46,22 @@ A **production artifact** — a batch scoring job, a serving endpoint, a registe
 
 ---
 
+## ml_engineer ↔ devops_mlops
+
+**Decided in:** bd-01, bd-03
+
+### Rule
+
+The seam is **model vs. infrastructure**.
+
+| ml_engineer | devops_mlops |
+|---|---|
+| Model monitoring — drift, model performance, data quality | Infra monitoring — latency, error rate, resource use |
+
+### Handoff trigger
+
+What the metric is *about*. If it watches the model's predictions or quality, it is `ml_engineer`. If it watches the service or its infrastructure, it is `devops_mlops`.
+
+---
+
 *More boundaries will be added as eval cases surface disputes.*
