@@ -89,19 +89,17 @@ SINGLE_DOMAIN: list[EvalCase] = [
     EvalCase(
         id="sd-05",
         problem=(
-            "Our dbt repo lives in GitHub. Wire up GitHub Actions so that "
-            "dbt compile --select state:modified runs on every PR, "
-            "the full dbt test suite runs on merge to main, "
-            "and dbt run deploys to the production target on a version tag. "
-            "No new dbt models needed."
+            "Our FastAPI service is deployed manually today — zip the repo, SSH in, "
+            "restart the process. Wire up a GitHub Actions pipeline that builds a Docker image "
+            "on every push to main, pushes it to ECR, and deploys it to our ECS service. "
+            "The application code and Dockerfile already exist."
         ),
         expected_domains=["devops_mlops"],
         notes=(
-            "Included: devops_mlops — CI/CD pipeline configuration. "
-            "Excluded: data_engineer (not building data pipelines — configuring "
-            "deployment automation for existing ones; 'no new dbt models' is explicit), "
-            "software_dev (no service or API — GitHub Actions config is ops, not dev), "
-            "analytics (no analysis), ml_engineer (no model), data_scientist (no experimentation)."
+            "Included: devops_mlops — CI/CD pipeline, Docker build/push, ECS deployment. "
+            "Excluded: software_dev (application code and Dockerfile already exist — no code changes), "
+            "data_engineer (no data pipeline), analytics (no analysis), "
+            "ml_engineer (no model), data_scientist (no experimentation)."
         ),
     ),
     EvalCase(
@@ -386,6 +384,25 @@ MULTI_DOMAIN: list[EvalCase] = [
             "Excluded: software_dev (parity validation is explicitly dbt tests and "
             "warehouse queries — no custom diffing scripts needed), "
             "ml_engineer (no models), data_scientist (no experimentation)."
+        ),
+    ),
+    EvalCase(
+        id="md-15",
+        problem=(
+            "Our dbt repo lives in GitHub. Wire up GitHub Actions so that "
+            "dbt compile --select state:modified runs on every PR, "
+            "the full dbt test suite runs on merge to main, "
+            "and dbt run deploys to the production target on a version tag. "
+            "No new dbt models needed."
+        ),
+        expected_domains=["devops_mlops", "data_engineer"],
+        notes=(
+            "Included: devops_mlops — GitHub Actions workflow configuration. "
+            "Included: data_engineer — dbt project readiness for CI/CD (profiles.yml target setup, "
+            "state comparison artifact logic, CI/CD environment config). A devops engineer owns the "
+            "workflow files; a data engineer owns whether the dbt project supports them. "
+            "Excluded: software_dev (no service or API), "
+            "analytics (no analysis), ml_engineer (no model), data_scientist (no experimentation)."
         ),
     ),
     EvalCase(

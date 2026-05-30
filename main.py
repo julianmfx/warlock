@@ -4,6 +4,8 @@ from warlock.agents.data_scientist import DataScientistAgent
 from warlock.agents.devops_mlops import DevOpsMLOpsAgent
 from warlock.agents.ml_engineer import MLEngineerAgent
 from warlock.agents.software_dev import SoftwareDevAgent
+from warlock.eval.cases import SINGLE_DOMAIN
+from warlock.eval.run_logger import log_run
 from warlock.memory import Memory
 from warlock.orchestrator import Orchestrator
 from warlock.providers.anthropic import AnthropicClient
@@ -40,6 +42,12 @@ orchestrator.register(
     SoftwareDevAgent(memory=m, client=client, model="claude-haiku-4-5-20251001")
 )
 
-output = orchestrator.run("Build a churn prediction system for a SaaS product")
+
+# output = orchestrator.run("Build a churn prediction system for a SaaS product")
+# log_run(m)
+
+case = next(c for c in SINGLE_DOMAIN if c.id == "sd-05")
+orchestrator.run(case.problem)
+log_run(m, case=case)
 m.print_log()
 m.print_run_summary()

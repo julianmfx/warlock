@@ -64,4 +64,29 @@ What the metric is *about*. If it watches the model's predictions or quality, it
 
 ---
 
+## data_engineer ↔ devops_mlops
+
+**Decided in:** md-15
+
+### Rule
+
+The seam is **workflow files vs. project config**.
+
+| devops_mlops | data_engineer |
+|---|---|
+| CI/CD pipeline configuration (GitHub Actions, Airflow DAGs, deployment scripts) | dbt project readiness (profiles.yml, dbt_project.yml, target setup, state artifact logic) |
+| Secrets management and environment wiring | Schema validation and pipeline correctness |
+| Deployment automation | Data pipeline internals |
+
+### Handoff trigger
+
+Who needs domain knowledge to do the work. A devops engineer can write the GitHub Actions YAML without knowing dbt internals. A data engineer owns whether the dbt project is structured to support those workflows — broken `profiles.yml` targets or missing state artifacts are dbt concerns, not ops concerns.
+
+### Key exclusions
+
+- "No new dbt models" does **not** exclude `data_engineer` — project structure and CI/CD readiness are separate from model authoring.
+- `devops_mlops` does not own dbt project config even when the task is CI/CD setup.
+
+---
+
 *More boundaries will be added as eval cases surface disputes.*
