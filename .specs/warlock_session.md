@@ -17,21 +17,25 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-**Built the eval logger — Session 2 of `.specs/next-steps.md` is done.** The curated suite drafted last session now has the read-only measurement code behind it. Warlock can now log a feature row for every run.
+**Captured the eval baseline (Session 3 done) and reframed the eval track from *measuring* a run to *training a small LLM*.** The logger built last session ran over the full suite; the captured rows were then reviewed metric-by-metric and case-by-case, and that review changed the track's goal.
 
-1. **Built `warlock/eval/metrics.py`** — the four metric functions (`coverage`, `routing_precision`, `acceptance_rate`, `output_fidelity`) computed over real memory keys (`task_decomposition`, `validation_results`, `agent_outputs`). F runs through a lazy `_embedding()` seam loading `sentence-transformers` `all-MiniLM-L6-v2`. `coverage`/`routing_precision` return `None` when `expected_domains` is absent.
-2. **Built `warlock/eval/run_logger.py`** — `log_run(memory, case=None, base_dir="eval_runs")`, a read-only observer that computes A/F always, C/R only when a case is given, sets `has_case`, captures an `iteration` count (hardcoded `0` today via `_max_iteration`, forward-compat for the consensus loop), embeds the raw outputs, sets `label=None`, and appends one JSON line to `eval_runs/<date>.jsonl`.
-3. **Wired `log_run(m)` into `main.py`** — one line after `orchestrator.run(...)`, before the log/summary prints.
-4. **Added dependencies** — `numpy>=2.4.6` and `sentence-transformers>=5.5.1` in `pyproject.toml` (and `uv.lock`).
-5. **Recorded a future touch point in `.specs/next-steps.md`** — the agent clarification loop: F/A must be computed on final output only, and `iteration` must reflect real clarification-round depth, once that loop lands.
-6. **Reworked the case suite (23 → 24)** — rewrote `sd-05` to a pure-ops deploy case and split the old dbt-CI/CD problem into the new two-domain `md-15`, surfacing the **third boundary contract** (`data_engineer ↔ devops_mlops`) in `agent_contracts.md`.
-7. **Switched `main.py` to a cased driver** — runs `sd-05` via `orchestrator.run(case.problem)` + `log_run(m, case=case)`, beginning Session 3 baseline capture / the Step-1 verify gate.
+1. **Captured the baseline** — ran all 24 cases through today's orchestrator (single blind retry), producing `eval_runs/2026-06-04.jsonl` (24 rows, one per case). The Step-1 verify gate passed (broad cases `R < 1`, single-domain `C=R=1.0`, A/F in range, raw outputs captured, `label=null`).
+2. **Reviewed the metrics and cases against the captured rows** → two new analysis docs:
+   - `warlock/eval/EVAL_REFERENCE.md` — consolidated per-case + per-metric correctness review. 23/24 cases sound (only `sd-02` needed a real fix, since applied; `md-04` an optional hardening). `coverage` + `routing_precision` trustworthy at the **set level**; `acceptance_rate` is **not** a scope signal; `output_fidelity` is the weakest (rewards prompt-echo — the only perfect run, bd-01, scored *lowest*).
+   - `warlock/eval/suite_notes.md` — how to read aggregate scores; the routing×acceptance interaction taxonomy (spurious alignment / genuine conflict / full inversion / anti-correlation) worked through all 24 cases.
+3. **Reframed the track to training (router-first)** → `warlock/eval/training_eval_plan.md`. A training signal is *optimized against*, so the bar rises above a measurement metric: two of four metrics are unsafe as rewards, `coverage` has zero variance, and the cases carry no per-example target.
+4. **Edited `cases.py`** — added an `EvalCase.verified: bool` flag (20 of 24 → `True`; md-15, bd-01, bd-02, bd-03 still pending); applied the `sd-02` view/semantic-layer ownership fix; strengthened many exclusion notes with the suite-level lifecycle-ownership rule; moved `md-13` up into `MULTI_DOMAIN` (before `md-15`); renamed `BROAD` → `BROAD_DOMAIN`.
+5. **Switched the `main.py` driver to `bd-03`** (the broadest case) — `from warlock.eval.cases import BROAD_DOMAIN`, `case = next(c for c in BROAD_DOMAIN if c.id == "bd-03")`.
 
-**F definition (settled):** `output_fidelity` measures each agent's **assigned task** (`task_decomposition[i].task`) vs that agent's output, averaged across agents — "did each agent answer the task it was given?" This is a sharper per-agent relevance signal than the whole-problem embedding, which would blur across agents. D1 in `eval_ml_plan.md` was updated this session to make assigned-task-vs-output the canonical definition; the shipped code already matches.
+**Key empirical findings (read off the 24 rows):**
+- **`Coverage = 1.0` on every case** — the orchestrator never *missed* a needed domain; its only failure mode is over-routing. Recall is therefore untrained and untested (no case makes dropping a domain tempting).
+- **`Routing` spans 0.33–1.0**, doing the real discrimination.
+- **`routing_precision` is set-based and blind to task→domain assignment** — in all three broad cases the orchestrator pushed **drift monitoring to devops_mlops** when the spec assigns it to **ml_engineer**, and (bd-02/bd-03) **training to ml_engineer** when it belongs to **data_scientist** — none visible to the metric because the domains are still in the expected set.
+- **`acceptance_rate` / `output_fidelity` do not track scope** and are dangerous as rewards.
 
-Uncommitted at session close: `main.py`, `pyproject.toml`, `uv.lock`, `.specs/next-steps.md` (modified), and the untracked `warlock/eval/metrics.py` + `warlock/eval/run_logger.py`.
+Uncommitted at session close: modified `main.py`, `warlock/eval/cases.py`; untracked `warlock/eval/EVAL_REFERENCE.md`, `warlock/eval/suite_notes.md`, `warlock/eval/training_eval_plan.md`. (`eval_runs/` and its baseline file are gitignored — D8.)
 
-The active frontier is now eval **Session 3 — capture the baseline** (which doubles as the Step-1 verify gate). The Phase 4 consensus loop remains open, sequenced as Session 4, after the baseline.
+The active frontier is now the **prompt-fix re-baseline control** (Session 3.5): load the boundary rules into `Orchestrator.decompose`'s prompt and set `temperature=0`, re-run the suite, and report the delta against the 2026-06-04 baseline. The Phase 4 consensus loop remains open (Session 4), running independently of the eval-training work.
 
 ---
 
@@ -47,7 +51,7 @@ Public-facing entry point. Project overview, stack, run command, triangle archit
 
 ### `CLAUDE.md` ✓ done
 
-Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note updated to reflect Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`, the curated suite in `warlock/eval/cases.py`, the now-built logger (`metrics.py`, `run_logger.py`), the session sequencing in `.specs/next-steps.md`, and the boundary contracts in `warlock/eval/agent_contracts.md`.
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note reflects Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`, the curated suite in `warlock/eval/cases.py` (now with a `verified` flag), the built logger (`metrics.py`, `run_logger.py`), the **captured baseline** (`eval_runs/2026-06-04.jsonl`), the review docs (`EVAL_REFERENCE.md`, `suite_notes.md`), the **measure→train reframe** (`warlock/eval/training_eval_plan.md`), the session sequencing in `.specs/next-steps.md`, and the boundary contracts in `warlock/eval/agent_contracts.md`.
 
 ### `.specs/eval_ml_plan.md` ✓ done — evaluation system design
 
@@ -69,18 +73,11 @@ The full step-by-step plan to evaluate Warlock runs and evolve the evaluator fro
 - **D7** — log *every* run; A and F always compute; only C and R go `null` when no case; explicit `has_case: bool` flag so null never silently coerces to 0.0.
 - **D8** — `eval_runs/` gitignored; commit only `cases.py`; dataset regenerable / external.
 
-**Roadmap:** Step 1 log → Step 2 label → Step 3 train logistic regression → Step 4 split + confusion matrix → Step 5 calibrate + abstain → Step 6 retraining loop.
+**Roadmap:** Step 1 log → Step 2 label → Step 3 train logistic regression → Step 4 split + confusion matrix → Step 5 calibrate + abstain → Step 6 retraining loop. *(Reframe note: this classifier is now recast as the **reward model**, distinct from the router task-LLM — see `training_eval_plan.md` §8.)*
 
 ### `.specs/next-steps.md` ✓ done — session sequencing for both open tracks
 
-Orders the eval pipeline and the Phase 4 consensus loop into startable-cold sessions, under the principle **measure before you improve**. A quality-improvement mechanism built without a quality measurement is unfalsifiable, so the logger is built first and the consensus loop is proven by moving a captured baseline.
-
-**The two tracks synchronize at three touch points:**
-1. **Acceptance rate `A` + iteration count** — the eval row logs the run's iteration/retry count from day one (0-or-1 today) so the *same* logger captures the richer signal once the consensus loop lands.
-2. **Trace-logger completeness** — `TraceLogger` records only iteration 0 today; the consensus loop closes that gap by logging every iteration.
-3. **Confidence score fusion** — once the eval *classifier* is trained (Step 3+), its `P(excellent/acceptable/poor)` replaces the hand-set `confidence: low` tag in the escape valve. This is where the two tracks merge.
-
-**Ordered sequence:** S1 draft suite → S2 build logger → S3 capture baseline → S4 build consensus loop → S5 re-measure → S6+ label → train → calibrate → fuse. **S1 and S2 are now done; S3 is the active frontier.** This session also added an open note on the **agent clarification loop**: when it lands, F and A must be computed on the final output only (not intermediate question rounds), and `iteration` must reflect real clarification-round depth.
+Orders the eval pipeline and the Phase 4 consensus loop into startable-cold sessions, under the principle **measure before you improve**. Sessions 1–3 are done (suite drafted + reviewed, logger built, baseline captured). This session inserted **Session 3.5 — the measure→train reframe**: the prompt-fix re-baseline control (boundary rules + `temperature=0` in `decompose`), then `gold_decomposition` + `assignment_accuracy`, scope-aware `acceptance_rate`, and under-routing cases — taken ahead of the consensus loop. The three eval↔consensus touch points (A + iteration count, trace-logger completeness, confidence-score fusion) and the open note on the agent clarification loop (F/A computed on final output only; `iteration` reflects real clarification-round depth) are retained.
 
 ### `warlock/memory.py` ✓ done — shared state bus
 
@@ -184,11 +181,13 @@ First entry — **data_scientist ↔ ml_engineer** (decided in case `md-11`):
 
 Second entry — **ml_engineer ↔ devops_mlops** (decided in `bd-01`, `bd-03`): the seam is model vs. infrastructure. ml_engineer owns *model* monitoring (drift, model performance, data quality); devops_mlops owns *infra* monitoring (latency, error rate, resource use). Handoff trigger: what the metric is *about* — the model's predictions, or the service it runs on.
 
-Third entry — **data_engineer ↔ devops_mlops** (decided in `md-15`): the seam is workflow files vs. project config. devops_mlops owns the CI/CD workflow (GitHub Actions YAML, deployment scripts, secrets/env wiring); data_engineer owns dbt project readiness (`profiles.yml` targets, `dbt_project.yml`, state-artifact logic, schema validation). Handoff trigger: who needs domain knowledge — a devops engineer writes the Actions YAML without knowing dbt internals; a data engineer owns whether the dbt project is structured to support those workflows. Note: "no new dbt models" does **not** exclude data_engineer — project structure and CI/CD readiness are separate from model authoring.
+Third entry — **data_engineer ↔ devops_mlops** (decided in `md-15`): the seam is workflow files vs. project config. devops_mlops owns the CI/CD workflow (GitHub Actions YAML, deployment scripts, secrets/env wiring); data_engineer owns dbt project readiness (`profiles.yml` targets, `dbt_project.yml`, state-artifact logic, schema validation). Handoff trigger: who needs domain knowledge — a devops engineer writes the Actions YAML without knowing dbt internals; a data engineer owns whether the dbt project is structured to support those workflows.
 
-### `warlock/eval/cases.py` ✓ done — curated eval suite
+> **Baseline observation (this session):** the live orchestrator *fails* the ml_engineer ↔ devops_mlops boundary in all three broad cases — drift monitoring routed to devops_mlops when the contract assigns it to ml_engineer — and the data_scientist ↔ ml_engineer boundary in bd-02/bd-03 (training routed to ml_engineer). `routing_precision` cannot see either because the misrouted domain is still inside the expected set; only the proposed `assignment_accuracy` metric would.
 
-The human-owned ground truth the eval logger measures routing against (D2, D6). Pending the human's review/correction pass on the domain sets.
+### `warlock/eval/cases.py` ✓ done — curated eval suite (reviewed this session)
+
+The human-owned ground truth the eval logger measures routing against (D2, D6). The review/correction pass is done: an `EvalCase.verified: bool` field was added and 20 of 24 cases are now `verified=True` (md-15, bd-01, bd-02, bd-03 remain `False`, pending confirmation before they become training gold).
 
 ```python
 @dataclass
@@ -197,24 +196,23 @@ class EvalCase:
     problem: str
     expected_domains: list[str]
     notes: str = ""
+    verified: bool = False        # added this session
 
 SINGLE_DOMAIN: list[EvalCase] = [...]   # sd-01 … sd-06  (6)
-MULTI_DOMAIN:  list[EvalCase] = [...]   # md-01 … md-15  (15)
-BROAD:         list[EvalCase] = [...]   # bd-01 … bd-03  (3)
-ALL_CASES = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD          # 24 total
+MULTI_DOMAIN:  list[EvalCase] = [...]   # md-01 … md-15  (15, md-13 now precedes md-15)
+BROAD_DOMAIN:  list[EvalCase] = [...]   # bd-01 … bd-03  (3)   (renamed from BROAD)
+ALL_CASES = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD_DOMAIN   # 24 total
 ```
 
 - **24 cases** spanning routing width — 6 single-domain, 15 two-to-three-domain, 3 broad (the broad cases route 4–6 domains).
-- Each case's `notes` gives per-domain **inclusion and exclusion** reasoning — what makes the R (routing-precision / over-routing) metric measurable.
-- Problems use scope-narrowing language ("no downstream transformations", "no CI/CD pipeline", "model already trained and signed off") to force the minimal-domain ground truth.
-- Boundary-sensitive cases (`md-09`, `md-10`, `md-11`, `md-13`, `md-15`, `bd-01`) carry inline notes on *why* a domain was included or excluded.
-- This session `sd-05` was rewritten to a pure-ops case (FastAPI → Docker/ECR/ECS deploy, app code already exists → single-domain `devops_mlops`); the old dbt-CI/CD problem became the new two-domain `md-15` (`devops_mlops` + `data_engineer`), which surfaced the third boundary contract below.
+- This session's edits: (1) added the `verified` flag; (2) applied the **`sd-02` fix** — the view/semantic SQL layer behind a dashboard is now explicitly assigned to **analytics** (writing aggregation SQL for one's own dashboard is analytics, not data engineering); (3) strengthened many exclusion notes to cite the **suite-level lifecycle-ownership rule** (operational hooks live inside the domain that owns the artifact they sit in, unless they have independent lifecycle); (4) moved **`md-13`** (fine-tune BERT + nightly batch scoring) up into `MULTI_DOMAIN` before `md-15`; (5) renamed the broad list `BROAD` → `BROAD_DOMAIN` (the import in `main.py` follows).
+- Each case's `notes` gives per-domain **inclusion and exclusion** reasoning — what makes R (routing-precision / over-routing) measurable.
 
 ### `warlock/eval/__init__.py` ✓ done
 
 Empty package file for the eval module.
 
-### `warlock/eval/metrics.py` ✓ done — the four metric functions (this session)
+### `warlock/eval/metrics.py` ✓ done — the four metric functions
 
 Pure functions over real memory keys, plus the embedding seam. Read-only — no writes to the bus.
 
@@ -235,8 +233,9 @@ def output_fidelity(task_decomposition, agent_outputs) -> float | None
 - `_embedding(text)` lazily instantiates a module-level `SentenceTransformer("all-MiniLM-L6-v2")` and encodes; cosine computed with `numpy` `dot` / `norm`.
 - `invoked` is the set of `task["domain"]` across `task_decomposition`; `needed` is `set(expected_domains)`.
 - **F (per D1):** `output_fidelity` embeds each agent's **assigned task** vs its output and averages — the canonical definition. Not the whole problem vs each output.
+- **Baseline review verdict:** `coverage` and `routing_precision` are trustworthy at the set level; `acceptance_rate` is not a scope signal; `output_fidelity` rewards prompt-echo. The review (`EVAL_REFERENCE.md` §10, `training_eval_plan.md` §6) proposes adding `assignment_accuracy`, making `acceptance_rate` scope-aware, and reframing/replacing `output_fidelity` — none built yet.
 
-### `warlock/eval/run_logger.py` ✓ done — read-only per-run feature row (this session)
+### `warlock/eval/run_logger.py` ✓ done — read-only per-run feature row
 
 ```python
 def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
@@ -254,6 +253,27 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
 - `_max_iteration(validation_results)` returns `0` today (every agent runs at most once) — a forward-compat seam that will reflect real retry depth once the consensus loop lands (touch point 1).
 - `label=None` — rows are unlabeled until eval Step 2.
 - `eval_runs/` is gitignored (D8).
+
+### `warlock/eval/EVAL_REFERENCE.md` ✓ done — consolidated metric + case review (this session)
+
+The single reference for "do the cases and metrics measure routing quality?" Reviews all 24 cases and all four metrics against the captured baseline.
+- **Cases:** 23/24 correctly specified as written; only `sd-02` needed a real fix (applied), `md-04` an optional hardening.
+- **Metrics:** `coverage` trustworthy; `routing_precision` trustworthy **at the set level only** — blind to which deliverable went to which domain within the expected set (proven by bd-01/bd-02/bd-03, where drift→devops_mlops misassignment was invisible); `acceptance_rate` does not track scope (grades agents against the orchestrator's task partition, rewards out-of-scope work, penalizes scope-aware refusal, even manufactures out-of-taxonomy reasons); `output_fidelity` measures prompt-echo, uncorrelated with quality (the only perfect run scored lowest).
+- **Fixes proposed:** the suite-level ownership rule as a header; scope-aware `acceptance_rate` (Fix A: post-hoc override; Fix B: split into `in_scope`/`executed`/`stayed_in_lane`); a per-deliverable `assignment_accuracy` with a `gold_assignments` field; reframe/replace `output_fidelity`.
+
+### `warlock/eval/suite_notes.md` ✓ done — how to read aggregate scores (this session)
+
+Companion reference for interpreting per-case and aggregate results. Contains the **suite-level ownership rule** with concrete per-case applications, per-metric interpretation notes, the full fidelity range table, and the routing×acceptance interaction taxonomy worked through every case (spurious alignment, genuine conflict, full inversion, anti-correlation-by-construction). Documents recurring orchestrator failure modes (keyword-triggered decomposition; the ml_engineer-vs-devops_mlops and data_scientist-vs-ml_engineer confusions; chain-shifting) and validator failure modes (scope-aware-penalty, non-determinism, out-of-taxonomy reasons, factual contradiction).
+
+### `warlock/eval/training_eval_plan.md` ✓ done — the measure→train reframe (this session)
+
+The plan that recasts the eval from a *measurement* instrument into a *training signal* for a small LLM. Core thesis: **the bar for a reward is higher than for a metric** — a reward is optimized against, so every confound a metric is allowed to have becomes a degenerate path. Contents:
+- **Train the router first** (orchestrator: `problem → [{domain, task}]`) — gold is authorable, the suite already half-measures it, highest leverage. Defer the domain agents (gold outputs expensive) and the supervisor (circular to train a judge on outputs it grades).
+- **Blocker:** cases carry only `expected_domains` (a *set*); SFT needs a per-example **`gold_decomposition`** (`[{deliverable, domain}]`). Author it for the discriminating cases first; it triples as SFT target, `assignment_accuracy` source, and dense reward.
+- **Metrics as rewards:** `coverage` keep-but-give-variance; `routing_precision` keep-never-alone; `acceptance_rate` fix before any reward use; `output_fidelity` do-not-reward; add `assignment_accuracy`.
+- **Two distinct "small models":** the `[C,R,A,F]→y` logistic-regression eval-classifier (the **reward model / quality gate**) vs. the fine-tuned router (the **task-LLM** being improved). The suite is the router's held-out test and, once trustworthy, its reward.
+- **Empirical findings** (§5): Coverage = 1.0 everywhere (no recall gradient), no labels yet, the orchestrator routes blind (no boundary rules in its prompt), and decomposition is non-deterministic (`temperature` unset in `decompose`).
+- **Priority order** (§10): prompt-fix re-baseline (free control) → `gold_decomposition` + `assignment_accuracy` → scope-aware `A` / fence `F` → under-routing cases → `label.py` → generation + frozen holdout.
 
 ### `warlock/orchestrator.py` ✓ done — decompose, route, time, supervise
 
@@ -277,6 +297,7 @@ class Orchestrator:
 - Empty decomposition (`[]`) is a silent no-op — Supervisor will handle in the consensus loop
 - A `TraceLogger` is created per run with a fresh UUID `run_id`; logs every validation event
 - **Current behavior:** on rejection the agent is retried once (blind retry — P0 fixed). The full reason-passing 3-iteration loop is not yet built.
+- **Known gap (from this session's baseline):** `decompose()`'s system prompt lists only the six domain names + output format — no boundary rules, no `temperature=0`. Fixing this is the Session 3.5 control (the cheapest routing-quality win and the baseline any fine-tune must beat).
 
 ### `warlock/supervisor.py` ✓ done
 
@@ -292,7 +313,7 @@ class Supervisor:
         # returns result["accepted"]
 ```
 
-**ROLE highlights:** two-axis evaluation (ON-DOMAIN, QUALITY), JSON-only response (`{"accepted": bool, "reason": str}`), defensive code-fence strip on parse. P1 (`cache_read_tokens or 0` guard) and P3 (`temperature=0`) both fixed.
+**ROLE highlights:** two-axis evaluation (ON-DOMAIN, QUALITY), JSON-only response (`{"accepted": bool, "reason": str}`), defensive code-fence strip on parse. P1 (`cache_read_tokens or 0` guard) and P3 (`temperature=0`) both fixed. **Baseline caveat:** the validator grades each agent against the orchestrator's assigned task, never against `expected_domains` — the root cause of `acceptance_rate` not tracking scope (`EVAL_REFERENCE.md` §3, fixable in the eval layer without touching production behavior).
 
 ### `warlock/trace_logger.py` ✓ done — validation event recorder
 
@@ -300,7 +321,7 @@ class Supervisor:
 
 ### `main.py` ✓ done — wires the triangle (no consensus yet)
 
-Registers all six agents, instantiates the Supervisor, wires it into the Orchestrator. This session the driver switched from the free-text churn problem (now commented out, with a bare `log_run(m)`) to a **cased eval run**: it picks `sd-05` from `SINGLE_DOMAIN`, runs `orchestrator.run(case.problem)`, then **`log_run(m, case=case)`** — the first cased row, and the start of Session 3 baseline capture / the Step-1 verify gate (a correctly-routed single-domain case should score `C=R=1.0`, `has_case=true`). Then prints the full memory log and the run summary.
+Registers all six agents, instantiates the Supervisor, wires it into the Orchestrator. The driver runs one **cased eval run** per invocation: this session it points at the broadest case — `from warlock.eval.cases import BROAD_DOMAIN`, `case = next(c for c in BROAD_DOMAIN if c.id == "bd-03")`, then `orchestrator.run(case.problem)` followed by **`log_run(m, case=case)`** (appends one row to `eval_runs/<date>.jsonl`). Then prints the full memory log and the run summary. The free-text churn problem remains commented out above, with a bare `log_run(m)` example. Swapping the `case = next(...)` line across `SINGLE_DOMAIN` / `MULTI_DOMAIN` / `BROAD_DOMAIN` is how the full suite is run to (re)capture a baseline.
 
 ### `.gitignore` ✓ done
 
@@ -310,23 +331,17 @@ Ignores all `*.txt` audit dumps, the `traces/` directory, and (D8) the `eval_run
 
 ## What we are building next
 
-### Eval Session 3 — capture the baseline (active frontier)
+### Eval Session 3.5 — prompt-fix re-baseline (active frontier)
 
-The logger is built and wired, F is settled (assigned-task vs output per agent — D1 and code agree), and `main.py` already runs one cased single-domain smoke test (`sd-05`). Next: run the full 24-case suite through today's orchestrator and record the baseline. This **doubles as the Step-1 verify gate** from `eval_ml_plan.md` / `next-steps.md`.
+The baseline is captured and reviewed; the review shows the orchestrator **routes blind** (its `decompose` prompt has no boundary rules and no `temperature=0`). Before training anything, capture the honest control: the cheapest possible improvement, and the number any later fine-tune must beat.
 
-**Capture the baseline:**
-- Run each `EvalCase` in `cases.py` through `orchestrator.run(case.problem)`, calling `log_run(m, case=case)` per run.
-- Record baseline **means of A and F** and the **label distribution** (labels can be process-only / null at this stage — A and F are enough to start).
-- These are the targets the consensus loop (Session 4) must later beat.
+**Do (priority order from `training_eval_plan.md` §10):**
+1. **Load boundary rules + `temperature=0` into `Orchestrator.decompose`.** Put the suite-level ownership rule and the `agent_contracts.md` boundaries (and a few gold decompositions as few-shot) into the system prompt; set `temperature=0` for reproducibility. Re-run all 24 cases; record the new rows alongside `eval_runs/2026-06-04.jsonl` and report the `Routing` delta.
+2. **Add `gold_decomposition` + `assignment_accuracy`.** Add `gold_decomposition: list[{deliverable, domain}]` to the discriminating cases (bd-01/02/03, md-13, boundary md-\*) and a per-deliverable `assignment_accuracy` metric in `metrics.py` — the only metric that catches drift→devops_mlops and training→ml_engineer, and the SFT target.
+3. **Make `acceptance_rate` scope-aware (Fix A) and fence `output_fidelity`** out of any reward — both as a post-hoc eval-layer override; do not touch the supervisor's production behavior.
+4. **Author under-routing / hard-negative cases** so `coverage` gains variance (today it is 1.0 on every case).
 
-**Verify gate checks (from `next-steps.md` S2):**
-- every row has in-range `[A, F]`;
-- a **cased single-domain** problem routed correctly scores `C=R=1.0`, `has_case=true`;
-- an **uncased** run gives `C=R=null`, `has_case=false`, with A/F populated and in range;
-- raw outputs captured; `label=null`;
-- a hand-check of one row's arithmetic matches.
-
-### Phase 4 consensus loop (Session 4 — after baseline)
+### Phase 4 consensus loop (Session 4 — runs independently of the eval-training work)
 
 Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
 - Cap at 3 iterations per agent; pass the rejection **reason** back to the agent on each retry.
@@ -334,7 +349,7 @@ Full retry loop replacing the current one-blind-retry in `orchestrator.py`:
 - After 3 failed iterations, tag output `confidence: low`, `consensus=partial`, continue (escape valve).
 - Parallel multi-agent run once the retry loop is stable.
 - Clarifying questions deferred to Phase 5 (needs a user in the loop).
-- **Session 5 — re-measure:** re-run the suite, compare to the Session 3 baseline. A flat-quality / 3×-token result is a valid negative result.
+- **Session 5 — re-measure:** re-run the suite, compare to the baseline. A flat-quality / 3×-token result is a valid negative result.
 
 ---
 
@@ -369,20 +384,24 @@ warlock/
 │   ├── data_scientist.py  ✓ done
 │   └── software_dev.py    ✓ done
 └── eval/
-    ├── __init__.py        ✓ done
-    ├── cases.py           ✓ done — 24 EvalCase suite (6 sd / 15 md / 3 bd)
-    ├── agent_contracts.md ✓ done — settled domain boundaries (ds ↔ mle, mle ↔ devops, de ↔ devops)
-    ├── metrics.py         ✓ done — coverage, routing_precision, acceptance_rate, output_fidelity
-    └── run_logger.py      ✓ done — read-only per-run feature row → eval_runs/<date>.jsonl
+    ├── __init__.py            ✓ done
+    ├── cases.py               ✓ done — 24 EvalCase suite + verified flag (20/24 True); BROAD_DOMAIN
+    ├── agent_contracts.md     ✓ done — settled domain boundaries (ds ↔ mle, mle ↔ devops, de ↔ devops)
+    ├── metrics.py             ✓ done — coverage, routing_precision, acceptance_rate, output_fidelity
+    ├── run_logger.py          ✓ done — read-only per-run feature row → eval_runs/<date>.jsonl
+    ├── EVAL_REFERENCE.md      ✓ done — per-case + per-metric correctness review
+    ├── suite_notes.md         ✓ done — how to read aggregate scores
+    └── training_eval_plan.md  ✓ done — measure→train reframe (router-first)
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
-main.py                     ✓ done — six agents + supervisor + log_run(m) wired
+main.py                     ✓ done — six agents + supervisor + cased log_run (drives bd-03)
 .gitignore                  ✓ done — ignores *.txt, traces/, eval_runs/
 pyproject.toml              ✓ done — + numpy, sentence-transformers
+eval_runs/2026-06-04.jsonl  ✓ captured (gitignored) — 24-row baseline, one per case
 .specs/eval_ml_plan.md      ✓ done — evaluation system design, D1–D8 settled
-.specs/next-steps.md        ✓ done — session sequencing for eval + consensus tracks
-                            ← next: capture the baseline (Session 3)
+.specs/next-steps.md        ✓ done — session sequencing (S1–S3 done, S3.5 reframe inserted)
+                            ← next: prompt-fix re-baseline control (Session 3.5)
 ```
 
 ---

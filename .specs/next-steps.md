@@ -44,10 +44,19 @@ Neither track blocks the other's *construction* — both read only what already 
 - raw outputs captured; `label=null`;
 - a hand-check of one row's arithmetic matches.
 
-### Session 3 — Capture the baseline
+### Session 3 — Capture the baseline ✅ done
 **Goal:** a measured snapshot of **today's** orchestrator (single blind retry) before the consensus loop changes anything.
-**Do:** run the full suite through the current `main.py`/orchestrator; collect the `eval_runs/` rows. Optionally begin eval Step 2 labeling on this set (LLM-judge + human-verified sample, D3) to get a quality baseline, not just a process baseline.
-**Verify / done when:** a complete baseline dataset exists with a row per suite case; the numbers pass a sanity read — e.g. deliberately-broad-routing cases show `R < 1`, single-domain cases show `C=R=1.0`. **Record the baseline means** (`A`, `F`, and label distribution if labeled) — these are the targets the consensus loop must beat.
+**Done:** the full 24-case suite ran through the current `main.py`/orchestrator; `eval_runs/2026-06-04.jsonl` holds 24 rows (one per case). The verify gate passed (broad cases `R < 1`, single-domain `C=R=1.0`, A/F in range, raw outputs captured, `label=null`). **Findings:** `Coverage = 1.0` on all 24 (no recall variance), `Routing` spans 0.33–1.0, and `acceptance_rate`/`output_fidelity` were shown not to track scope (full review: `warlock/eval/EVAL_REFERENCE.md`, `warlock/eval/suite_notes.md`).
+
+### Session 3.5 — Track reframed: measure → train (the new control)
+**What changed:** the eval's purpose shifted from *measuring* a run to *training a small LLM* — the **router (orchestrator) first** (`warlock/eval/training_eval_plan.md`). A training signal is optimized against, so the bar rises: `acceptance_rate` and `output_fidelity` are unsafe as rewards, `coverage` has zero variance (recall untrained), and the suite has no per-example target.
+**Goal:** the honest control any fine-tune must beat, captured *before* any model is trained — the "measure before you improve" principle applied to training.
+**Do (priority order from `training_eval_plan.md` §10, ahead of the consensus loop):**
+1. Load the boundary rules (`agent_contracts.md`, the suite-level ownership rule) into `Orchestrator.decompose`'s prompt and set `temperature=0`; re-run the suite and re-baseline. Cheapest possible win; the control any later fine-tune is measured against.
+2. Add `gold_decomposition` (`[{deliverable, domain}]`) to the discriminating cases (bd-01/02/03, md-13, boundary md-\*) and an `assignment_accuracy` metric — catches the drift→devops misassignment that set-based `routing_precision` misses, and is the SFT target.
+3. Make `acceptance_rate` scope-aware (Fix A: domain ∉ `expected_domains` ⇒ rejected, a post-hoc eval-layer override); fence `output_fidelity` out of any reward.
+4. Author under-routing / hard-negative cases so `coverage` gains variance.
+**Verify / done when:** the prompt-fix suite re-run is recorded next to the 2026-06-04 baseline, with the delta on `Routing` (and `assignment_accuracy`, once it exists) reported. The consensus loop (Session 4) and the eval-classifier roadmap continue independently; the classifier becomes the **reward model**, distinct from the router task-LLM.
 
 ### Session 4 — Build the consensus loop (Phase 4)
 **Goal:** replace the single blind retry with a real reason-passing loop + escape valve.
@@ -84,12 +93,13 @@ Once the baseline/loop comparison is in hand, continue the eval roadmap from `ev
 
 | # | Session | Track | Done when |
 |---|---|---|---|
-| 1 | Draft eval suite | eval | Human-reviewed `cases.py` committed |
-| 2 | Build logger | eval | Verify gate passes; rows correct & forward-compat |
-| 3 | Capture baseline | eval | Baseline means recorded (A, F, labels) |
+| 1 | Draft eval suite | eval | ✅ Human-reviewed `cases.py` (`verified` flag) |
+| 2 | Build logger | eval | ✅ Verify gate passed; rows correct & forward-compat |
+| 3 | Capture baseline | eval | ✅ 24-row baseline captured (`eval_runs/2026-06-04.jsonl`) |
+| 3.5 | Reframe: prompt-fix re-baseline (the control) | eval/train | ← next: boundary rules + `temperature=0` in `decompose`, re-run, report delta |
 | 4 | Consensus loop | Phase 4 | Reason passed, cap enforced, escape valve + iter-logging |
 | 5 | Re-measure | both | A↑, F/labels hold-or-up, token cost vs. quality recorded |
-| 6+ | Label → train → calibrate → fuse | eval | Classifier feeds the confidence score |
+| 6+ | Label → train → calibrate → fuse | eval | Classifier feeds the confidence score / router reward |
 
 ---
 
