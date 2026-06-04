@@ -4,7 +4,7 @@ from warlock.agents.data_scientist import DataScientistAgent
 from warlock.agents.devops_mlops import DevOpsMLOpsAgent
 from warlock.agents.ml_engineer import MLEngineerAgent
 from warlock.agents.software_dev import SoftwareDevAgent
-from warlock.eval.cases import SINGLE_DOMAIN
+from warlock.eval.cases import BROAD_DOMAIN
 from warlock.eval.run_logger import log_run
 from warlock.memory import Memory
 from warlock.orchestrator import Orchestrator
@@ -46,7 +46,7 @@ orchestrator.register(
 # output = orchestrator.run("Build a churn prediction system for a SaaS product")
 # log_run(m)
 
-case = next(c for c in SINGLE_DOMAIN if c.id == "sd-05")
+case = next(c for c in BROAD_DOMAIN if c.id == "bd-03")
 orchestrator.run(case.problem)
 log_run(m, case=case)
 m.print_log()

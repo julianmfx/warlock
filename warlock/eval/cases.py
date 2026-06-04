@@ -7,6 +7,7 @@ class EvalCase:
     problem: str
     expected_domains: list[str]
     notes: str = ""
+    verified: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -25,10 +26,12 @@ SINGLE_DOMAIN: list[EvalCase] = [
         expected_domains=["data_engineer"],
         notes=(
             "Included: data_engineer — ingestion pipeline, schema handling, warehouse load. "
-            "Excluded: analytics (no dashboard asked), software_dev (not an API — a batch pipeline), "
-            "devops_mlops (no CI/CD or infra design, just build the pipe), "
+            "Excluded: analytics (no dashboard asked), "
+            "software_dev (a Slack webhook is an inline error handler inside the pipeline, not a standalone service), "
+            "devops_mlops (operational hooks that live inside a pipeline — schedule, alert — are owned by whoever builds the pipeline; no CI/CD or infra design asked), "
             "ml_engineer (no model), data_scientist (no experimentation)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="sd-02",
@@ -40,12 +43,15 @@ SINGLE_DOMAIN: list[EvalCase] = [
         ),
         expected_domains=["analytics"],
         notes=(
-            "Included: analytics — KPIs, dashboard, recurring reporting. "
-            "Excluded: data_engineer (data already in warehouse, explicitly scoped out), "
+            "Included: analytics — KPI definitions, the SQL view/semantic layer behind the dashboard, "
+            "and Metabase build; writing aggregation SQL for one's own dashboard is analytics work, not data engineering. "
+            "Excluded: data_engineer — ingestion and source-table maintenance are scoped out ('handled separately'); "
+            "the dashboard's own derived views are not data engineering. "
             "data_scientist (no statistical inference — trend reporting, not causal analysis), "
-            "software_dev (Metabase dashboard is not a service or API), "
+            "software_dev (building Metabase cards/views is not a deployable service), "
             "ml_engineer (no model), devops_mlops (no infra)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="sd-03",
@@ -59,14 +65,18 @@ SINGLE_DOMAIN: list[EvalCase] = [
         expected_domains=["ml_engineer"],
         notes=(
             "Included: ml_engineer — packaging, production validation, model registration. "
+            "The inference server lives inside the Docker image and serves only the model; "
+            "ml_engineer owns both the serving layer and the packaging as a single deliverable. "
             "Excluded: data_scientist (model is already trained and signed off — research cycle "
             "is closed; 'no retraining' is explicit), "
             "devops_mlops ('no CI/CD pipeline' is explicit — packaging a Docker image is ML "
             "engineering, not deployment automation), "
             "data_engineer (no data pipeline — reference dataset is assumed available), "
-            "software_dev (inference endpoint is part of ML packaging, not a user-facing service), "
+            "software_dev (inference endpoint is part of ML packaging, not a user-facing service "
+            "— it has no independent lifecycle outside the model image), "
             "analytics (no dashboard)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="sd-04",
@@ -81,10 +91,13 @@ SINGLE_DOMAIN: list[EvalCase] = [
             "Included: data_scientist — causal inference, experiment evaluation, "
             "statistical controls. "
             "Excluded: analytics (not a dashboard or recurring report — this is a "
-            "one-time inference question), ml_engineer (no model to build or deploy), "
+            "one-time inference question; exploratory queries and result visualization "
+            "are subordinate steps inside the causal analysis, owned by the data_scientist), "
+            "ml_engineer (no model to build or deploy), "
             "data_engineer (data already collected and logged), "
             "software_dev (no service), devops_mlops (no infra)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="sd-05",
@@ -97,10 +110,13 @@ SINGLE_DOMAIN: list[EvalCase] = [
         expected_domains=["devops_mlops"],
         notes=(
             "Included: devops_mlops — CI/CD pipeline, Docker build/push, ECS deployment. "
-            "Excluded: software_dev (application code and Dockerfile already exist — no code changes), "
+            "Excluded: software_dev (application code and Dockerfile already exist — no code changes; "
+            "reviewing existing code for deployment readiness is a subordinate step owned by devops_mlops "
+            "when setting up the pipeline, not an independent software engineering deliverable), "
             "data_engineer (no data pipeline), analytics (no analysis), "
             "ml_engineer (no model), data_scientist (no experimentation)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="sd-06",
@@ -113,12 +129,16 @@ SINGLE_DOMAIN: list[EvalCase] = [
         expected_domains=["software_dev"],
         notes=(
             "Included: software_dev — API endpoint, service integration. "
+            "Writing optimized SQL for a read-through API endpoint is a subordinate step "
+            "of the endpoint implementation, owned by software_dev — it has no independent lifecycle. "
             "Excluded: data_engineer (no ETL or pipeline — this is a read-through API; "
-            "'no new database tables' is explicit), "
+            "'no new database tables' is explicit; querying existing tables from inside an API "
+            "endpoint is application work, not data engineering), "
             "analytics (no analysis or dashboarding), "
             "devops_mlops (no deployment infrastructure asked — just build the endpoint), "
             "ml_engineer (no model), data_scientist (no experimentation)."
         ),
+        verified=True,
     ),
 ]
 
@@ -140,10 +160,14 @@ MULTI_DOMAIN: list[EvalCase] = [
             "Included: data_engineer (multi-source API ingestion, warehouse load), "
             "analytics (Metabase dashboard, channel performance metrics). "
             "Excluded: data_scientist ('no attribution modeling' is explicit — no causal "
-            "or statistical inference), ml_engineer (no model), "
+            "or statistical inference; data validation of a loaded pipeline is a data "
+            "engineering concern, not a research activity), "
+            "ml_engineer (no model), "
             "software_dev (ingestion is a pipeline, not a user-facing service), "
-            "devops_mlops (no CI/CD or infra design asked)."
+            "devops_mlops (no CI/CD or infra design asked; scheduling and monitoring are "
+            "operational hooks inside the pipeline, owned by data_engineer)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-02",
@@ -160,11 +184,15 @@ MULTI_DOMAIN: list[EvalCase] = [
             "devops_mlops (weekly scheduling, drift alerting, promotion automation). "
             "Excluded: data_scientist (metric and promotion threshold are pre-agreed — "
             "'promote if AUC improves' is explicit; if the metric choice or threshold "
-            "needed design justification, data_scientist would be added), "
+            "needed design justification, data_scientist would be added — the 10% PSI "
+            "threshold is given, so implementing PSI monitoring is ml_engineer/devops_mlops work, "
+            "not a research activity), "
             "data_engineer (no pipeline building asked — data is already available), "
             "analytics (drift alert is an ops concern, not a reporting dashboard), "
-            "software_dev (existing batch jobs handle serving — no new service)."
+            "software_dev (existing batch jobs handle serving — no new service asked; "
+            "'The model serves predictions via existing batch jobs' is explicit)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-03",
@@ -178,10 +206,13 @@ MULTI_DOMAIN: list[EvalCase] = [
         expected_domains=["data_scientist", "analytics"],
         notes=(
             "Included: data_scientist (significance testing, experiment evaluation), "
-            "analytics (time-series charts, metric visualization for the product team). "
+            "analytics (time-series charts, metric visualization for the product team — "
+            "building charts for a product audience is an analytics deliverable, not a software service). "
             "Excluded: ml_engineer (no model), data_engineer (data already in analytics.page_events), "
-            "software_dev (no service), devops_mlops (no infra)."
+            "software_dev (no service — time-series charts are not a deployable application), "
+            "devops_mlops (no infra)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-04",
@@ -197,10 +228,16 @@ MULTI_DOMAIN: list[EvalCase] = [
             "Included: data_engineer (Kafka consumption, feature computation, Redis writes, "
             "backfill job), ml_engineer (feature store design for ML serving, inference integration). "
             "Excluded: devops_mlops (the feature store is data/ML infrastructure, not CI/CD "
-            "or deployment pipeline — no scheduling or monitoring asked), "
-            "data_scientist (no experimentation — feature set is specified), "
-            "software_dev (not a user-facing API), analytics (no dashboard)."
+            "or deployment pipeline — no scheduling or monitoring was asked; operational concerns "
+            "such as lag monitoring and scheduling live inside the data_engineer pipeline unless a "
+            "separate deployment or observability deliverable is explicitly requested), "
+            "data_scientist (no experimentation — feature set is specified, consistent with "
+            "md-02's pre-agreed-threshold logic), "
+            "software_dev (not a user-facing API — the inference-time layer that reads features "
+            "for the recommendation model is ml_engineer's serving integration, not a standalone service), "
+            "analytics (no dashboard)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-05",
@@ -214,11 +251,14 @@ MULTI_DOMAIN: list[EvalCase] = [
         expected_domains=["software_dev", "data_engineer"],
         notes=(
             "Included: software_dev (webhook endpoint, async offload, signature validation), "
-            "data_engineer (Pub/Sub streaming ingestion into BigQuery). "
+            "data_engineer (Pub/Sub streaming ingestion into BigQuery — Pub/Sub topic and "
+            "BigQuery subscription setup are part of the pipeline deliverable, not infrastructure design). "
             "Excluded: analytics ('no downstream transformation' is explicit — no dashboard), "
-            "devops_mlops (no CI/CD or infra design asked — just build the service and the pipe), "
+            "devops_mlops (no CI/CD or infra design asked — just build the service and the pipe; "
+            "monitoring and alerting are operational surface not requested by the problem), "
             "ml_engineer (no model), data_scientist (no experimentation)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-06",
@@ -234,9 +274,12 @@ MULTI_DOMAIN: list[EvalCase] = [
             "Included: analytics (retention curve visualization per channel), "
             "data_scientist (significance test, statistical inference between groups). "
             "Excluded: ml_engineer (no predictive model — correlation/test only), "
-            "data_engineer (data assumed available in events.user_activity), "
+            "data_engineer (data assumed available in events.user_activity — extracting "
+            "from an existing table and computing retention flags is subordinate SQL work "
+            "owned by analytics and data_scientist as part of their own analysis), "
             "software_dev (no service), devops_mlops (no infra)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-07",
@@ -252,9 +295,11 @@ MULTI_DOMAIN: list[EvalCase] = [
             "Included: devops_mlops (CI/CD pipeline, EKS deployment, Docker image promotion), "
             "software_dev (Dockerfile authoring, /health endpoint, service structure for containerization). "
             "Excluded: ml_engineer (model already exists and is in S3 — this is deployment, not training), "
-            "data_engineer (no data pipelines), analytics (no dashboards), "
-            "data_scientist (no experimentation)."
+            "data_engineer (no data pipelines — S3 path verification and IAM setup are subordinate steps "
+            "owned by devops_mlops/software_dev as part of the deployment, not a data engineering task), "
+            "analytics (no dashboards), data_scientist (no experimentation)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-08",
@@ -271,8 +316,11 @@ MULTI_DOMAIN: list[EvalCase] = [
             "analytics (weekly trend visualization per feature type), "
             "data_scientist (Pearson correlations, churn signal ranking — statistical analysis). "
             "Excluded: ml_engineer (correlation ranking is not model deployment — no scoring "
-            "pipeline asked), software_dev (no service), devops_mlops (no CI/CD)."
+            "pipeline asked; a logistic-regression 'validation' step is model-building scope creep "
+            "that the problem — 'rank which behaviors matter most,' correlation only — does not ask for), "
+            "software_dev (no service), devops_mlops (no CI/CD — scheduling/monitoring not requested)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-09",
@@ -292,11 +340,13 @@ MULTI_DOMAIN: list[EvalCase] = [
             "devops_mlops (nightly scheduling, on-call alerting). "
             "Excluded: data_scientist (model already exists, alert threshold is pre-agreed — "
             "if the threshold needed design justification, data_scientist would be added), "
-            "analytics ('page on-call' is an ops alert, not a reporting dashboard), "
+            "analytics ('page on-call' is an ops alert, not a reporting dashboard — "
+            "the on-call page is operational infrastructure, not a visualization or reporting deliverable), "
             "software_dev (no user-facing service). "
             "Note: if feature generation involved a feature registry or feature engineering logic "
             "beyond SQL, ml_engineer would absorb that step and data_engineer's scope would shrink."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-10",
@@ -316,8 +366,10 @@ MULTI_DOMAIN: list[EvalCase] = [
             "devops_mlops (PagerDuty alerting, error rate monitoring). "
             "Excluded: data_engineer (no data pipeline — synchronous inference, not batch), "
             "data_scientist (no experimentation — fraud model already exists), "
-            "analytics (PagerDuty alert is ops, not a reporting dashboard)."
+            "analytics (PagerDuty alert is ops, not a reporting dashboard — "
+            "monitoring dashboards for an ops endpoint are devops_mlops territory, not business analytics)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-11",
@@ -332,15 +384,18 @@ MULTI_DOMAIN: list[EvalCase] = [
         notes=(
             "Included: data_scientist (full research cycle — holdout design, significance threshold, "
             "train price_v5 with demographics, compare RMSE + calibration, feature importance, "
-            "verdict on whether improvement is real). "
+            "verdict on whether improvement is real — surfacing methodological risks like disparate "
+            "impact and RMSE≠business-improvement is core data science, not orchestrator scope creep). "
             "ml_engineer (production cycle — validate price_v5 for production, register it). "
             "Handoff trigger: data_scientist delivers a trained, evaluated model with a clear verdict; "
             "ml_engineer takes it from there. "
             "Excluded: data_engineer (demographic features assumed available — no pipeline building), "
             "analytics (no dashboard asked), "
-            "devops_mlops (no deployment to serving asked — registration is the handoff, not a rollout), "
+            "devops_mlops (no deployment to serving asked — registration is the handoff, not a rollout; "
+            "model-registry registration is ml_engineer, deployment-to-serving is devops_mlops), "
             "software_dev (no service or API)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-12",
@@ -352,12 +407,38 @@ MULTI_DOMAIN: list[EvalCase] = [
         ),
         expected_domains=["analytics", "software_dev"],
         notes=(
-            "Included: analytics (report and metric design, query logic), "
+            "Included: analytics (report and metric design, query logic — 'which order-level fields, "
+            "what filtering semantics for region/category' is analytics report-design, not pipeline-building), "
             "software_dev (web UI, parameterized query layer, CSV export, SSO integration). "
-            "Excluded: data_engineer (data already in warehouse — no pipeline building), "
+            "Excluded: data_engineer (data already in warehouse — no pipeline building; the parameterized "
+            "query design belongs to analytics as query logic and software_dev as the data layer of the app), "
             "ml_engineer (no model), data_scientist (no statistical inference), "
             "devops_mlops (no CI/CD asked — just build the tool)."
         ),
+        verified=True,
+    ),
+    EvalCase(
+        id="md-13",
+        problem=(
+            "We have 50k labeled support tickets across 8 categories. "
+            "Fine-tune a BERT model on that dataset, evaluate it on a held-out split, "
+            "and wrap it in a nightly batch scoring job that runs against new tickets "
+            "and writes predictions to ml.ticket_predictions."
+        ),
+        expected_domains=["data_scientist", "ml_engineer"],
+        notes=(
+            "Included: data_scientist (fine-tuning and held-out evaluation are research-cycle "
+            "acts — training and evaluation always belong to data_scientist regardless of how "
+            "specified the approach is; a fully-specified 'fine-tune BERT' instruction is still "
+            "data_scientist's domain — specification does not transfer ownership to another domain). "
+            "ml_engineer (nightly batch scoring job + writing predictions to ml.ticket_predictions "
+            "— this is the production artifact, the handoff point). "
+            "Excluded: devops_mlops (batch scoring job is ML deployment, not CI/CD infra — "
+            "the model-serving batch job belongs to ml_engineer; deployment automation belongs to devops_mlops), "
+            "data_engineer (no pipeline building — data is already labeled), "
+            "software_dev (not a user-facing API), analytics (no dashboard)."
+        ),
+        verified=True,
     ),
     EvalCase(
         id="md-14",
@@ -375,16 +456,21 @@ MULTI_DOMAIN: list[EvalCase] = [
         notes=(
             "Included: data_engineer (re-platform Spark ETL jobs, parallel run, "
             "dbt tests and warehouse queries for parity validation — diffing is "
-            "warehouse-native, not custom scripting), "
+            "warehouse-native, not custom scripting; Spark→Glue/EMR code conversion "
+            "is data_engineer's re-platforming, not a software_dev build), "
             "devops_mlops (AWS infra setup, MWAA migration, secrets management, "
             "cutover automation), "
             "analytics (sign-off that Tableau dashboards keep producing correct output "
             "— analytics owns the dashboards, so they validate them even if no new "
-            "dashboard is being built). "
+            "dashboard is being built; sign-off responsibility is a real deliverable). "
             "Excluded: software_dev (parity validation is explicitly dbt tests and "
-            "warehouse queries — no custom diffing scripts needed), "
-            "ml_engineer (no models), data_scientist (no experimentation)."
+            "warehouse queries — no custom diffing scripts needed; ETL code conversion "
+            "belongs to data_engineer who owns the pipelines, not software_dev), "
+            "ml_engineer (no models), data_scientist (no experimentation — parity "
+            "validation is deterministic row-count and aggregate reconciliation, "
+            "not statistical inference)."
         ),
+        verified=True,
     ),
     EvalCase(
         id="md-15",
@@ -405,33 +491,13 @@ MULTI_DOMAIN: list[EvalCase] = [
             "analytics (no analysis), ml_engineer (no model), data_scientist (no experimentation)."
         ),
     ),
-    EvalCase(
-        id="md-13",
-        problem=(
-            "We have 50k labeled support tickets across 8 categories. "
-            "Fine-tune a BERT model on that dataset, evaluate it on a held-out split, "
-            "and wrap it in a nightly batch scoring job that runs against new tickets "
-            "and writes predictions to ml.ticket_predictions."
-        ),
-        expected_domains=["data_scientist", "ml_engineer"],
-        notes=(
-            "Included: data_scientist (fine-tuning and held-out evaluation are research-cycle "
-            "acts — training and evaluation always belong to data_scientist regardless of how "
-            "specified the approach is). "
-            "ml_engineer (nightly batch scoring job + writing predictions to ml.ticket_predictions "
-            "— this is the production artifact, the handoff point). "
-            "Excluded: devops_mlops (batch scoring job is ML deployment, not CI/CD infra), "
-            "data_engineer (no pipeline building — data is already labeled), "
-            "software_dev (not a user-facing API), analytics (no dashboard)."
-        ),
-    ),
 ]
 
 # ---------------------------------------------------------------------------
 # Broad (bd-*)
 # ---------------------------------------------------------------------------
 
-BROAD: list[EvalCase] = [
+BROAD_DOMAIN: list[EvalCase] = [
     EvalCase(
         id="bd-01",
         problem=(
@@ -540,4 +606,4 @@ BROAD: list[EvalCase] = [
 # Full suite
 # ---------------------------------------------------------------------------
 
-ALL_CASES: list[EvalCase] = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD
+ALL_CASES: list[EvalCase] = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD_DOMAIN
