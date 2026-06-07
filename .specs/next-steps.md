@@ -96,7 +96,7 @@ Once the baseline/loop comparison is in hand, continue the eval roadmap from `ev
 | 1 | Draft eval suite | eval | ✅ Human-reviewed `cases.py` (`verified` flag) |
 | 2 | Build logger | eval | ✅ Verify gate passed; rows correct & forward-compat |
 | 3 | Capture baseline | eval | ✅ 24-row baseline captured (`eval_runs/2026-06-04.jsonl`) |
-| 3.5 | Reframe: prompt-fix re-baseline (the control) | eval/train | ✅ step 1 done — rules + `temperature=0` in `decompose`; ~15/24 improved, recorded `2026-06-07.jsonl`; `assignment_accuracy` built, bd-01 gold. ← next: extend gold (md-12, bd-02/03, md-13) + N-sample baseline |
+| 3.5 | Reframe: prompt-fix re-baseline + gold + N-sample (the control) | eval/train | ✅ steps 1–2 done — rules + `temperature=0`; `assignment_accuracy` now **embedding-based** (cosine ≥ 0.30, calibrated); gold for 5 cases (bd-01/02/03, md-12, md-13); N-sample baseline `eval_runs/nsample/2026-06-07.jsonl`. ← next: scope-aware `A` + under-routing cases; structural fix = deliverable-level `decompose` output |
 | 4 | Consensus loop | Phase 4 | Reason passed, cap enforced, escape valve + iter-logging |
 | 5 | Re-measure | both | A↑, F/labels hold-or-up, token cost vs. quality recorded |
 | 6+ | Label → train → calibrate → fuse | eval | Classifier feeds the confidence score / router reward |

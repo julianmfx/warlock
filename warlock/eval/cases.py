@@ -417,6 +417,16 @@ MULTI_DOMAIN: list[EvalCase] = [
             "devops_mlops (no CI/CD asked — just build the tool)."
         ),
         verified=True,
+        gold_decomposition=[
+            # the analytics row is the discriminating one (md-12's stable regression is
+            # the orchestrator folding everything into software_dev, dropping analytics);
+            # note it overlaps with Coverage, which already penalises the analytics drop.
+            {"deliverable": "report and metric design: which order-level fields and filter semantics", "domain": "analytics"},
+            {"deliverable": "web app form to select date range, region, and product category", "domain": "software_dev"},
+            {"deliverable": "parameterized query layer for the app", "domain": "software_dev"},
+            {"deliverable": "downloadable CSV export", "domain": "software_dev"},
+            {"deliverable": "Google SSO authentication", "domain": "software_dev"},
+        ],
     ),
     EvalCase(
         id="md-13",
@@ -440,6 +450,11 @@ MULTI_DOMAIN: list[EvalCase] = [
             "software_dev (not a user-facing API), analytics (no dashboard)."
         ),
         verified=True,
+        gold_decomposition=[
+            {"deliverable": "fine-tune BERT on labeled tickets", "domain": "data_scientist"},
+            {"deliverable": "held-out evaluation",               "domain": "data_scientist"},
+            {"deliverable": "nightly batch scoring job writing to ml.ticket_predictions", "domain": "ml_engineer"},
+        ],
     ),
     EvalCase(
         id="md-14",
@@ -532,14 +547,15 @@ BROAD_DOMAIN: list[EvalCase] = [
             "infrastructure — these are deliberately split to test that distinction. "
             "software_dev owns the API surface; ml_engineer owns the inference layer behind it."
         ),
+        verified=True,
         gold_decomposition=[
-            {"deliverable": "clickstream instrumentation + ingestion", "domain": "data_engineer",  "match": "clickstream"},
-            {"deliverable": "train collaborative-filtering model",     "domain": "data_scientist", "match": "collaborative"},
-            {"deliverable": "package model + serving integration",     "domain": "ml_engineer",    "match": "package"},
-            {"deliverable": "prediction-drift monitoring",             "domain": "ml_engineer",    "match": "drift"},
-            {"deliverable": "GET /recommendations/{user_id} API",      "domain": "software_dev",   "match": "/recommendations"},
-            {"deliverable": "A/B traffic-splitting deploy",            "domain": "devops_mlops",   "match": "traffic"},
-            {"deliverable": "CTR / conversion-lift dashboard",         "domain": "analytics",      "match": "conversion"},
+            {"deliverable": "instrument clickstream events and build ingestion pipeline", "domain": "data_engineer"},
+            {"deliverable": "train collaborative-filtering model on purchase history", "domain": "data_scientist"},
+            {"deliverable": "package the trained model and integrate into the serving layer", "domain": "ml_engineer"},
+            {"deliverable": "monitor the model for prediction drift", "domain": "ml_engineer"},
+            {"deliverable": "expose GET /recommendations/{user_id} endpoint", "domain": "software_dev"},
+            {"deliverable": "deploy with A/B traffic splitting", "domain": "devops_mlops"},
+            {"deliverable": "dashboard tracking CTR and conversion lift vs control", "domain": "analytics"},
         ],
     ),
     EvalCase(
@@ -576,6 +592,15 @@ BROAD_DOMAIN: list[EvalCase] = [
             "analytics (executive dashboard surfacing scores and key drivers). "
             "Excluded: software_dev (no user-facing API or service asked)."
         ),
+        gold_decomposition=[
+            {"deliverable": "unify purchase, support, and engagement events from three source systems into a customer-level dataset", "domain": "data_engineer"},
+            {"deliverable": "identify LTV predictors via correlation and partial dependence", "domain": "data_scientist"},
+            {"deliverable": "train regression model to score customers at day 7", "domain": "data_scientist"},
+            {"deliverable": "package model and integrate into weekly batch scoring pipeline", "domain": "ml_engineer"},
+            {"deliverable": "prediction-drift monitoring", "domain": "ml_engineer"},
+            {"deliverable": "automate weekly schedule and alert on failures", "domain": "devops_mlops"},
+            {"deliverable": "executive dashboard surfacing scores and key drivers", "domain": "analytics"},
+        ],
     ),
     EvalCase(
         id="bd-03",
@@ -609,6 +634,14 @@ BROAD_DOMAIN: list[EvalCase] = [
             "health owned by ml_engineer and infra health owned by devops_mlops), "
             "software_dev (no user-facing API or service)."
         ),
+        gold_decomposition=[
+            {"deliverable": "orchestrate feature pipelines with Airflow", "domain": "data_engineer"},
+            {"deliverable": "define promotion criteria: metric, threshold, and statistical test for challenger vs champion", "domain": "data_scientist"},
+            {"deliverable": "track experiments with MLflow and training infrastructure", "domain": "ml_engineer"},
+            {"deliverable": "monitor model performance and feature drift per model", "domain": "ml_engineer"},
+            {"deliverable": "automate model promotion, Docker build, and rollout to serving cluster", "domain": "devops_mlops"},
+            {"deliverable": "monitor serving infrastructure for latency and error rate", "domain": "devops_mlops"},
+        ],
     ),
 ]
 

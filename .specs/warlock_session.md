@@ -17,22 +17,22 @@ A multi-agent AI platform for Data, AI, Data Science, Data Engineering, Analytic
 
 ## This session
 
-**Captured the prompt-fix re-baseline control (Session 3.5, step 1 — done) and built the first per-deliverable routing metric + gold target.** The eval reframe (measure → train the router) said the cheapest, highest-leverage move is to stop the orchestrator routing *blind*. This session did that and measured it honestly.
+**Made `assignment_accuracy` embedding-based, extended the gold to the 5 discriminating cases, and captured an N-sample routing baseline (Session 3.5, step 2 — done).** The prior session built a keyword-substring `assignment_accuracy` and bd-01 gold; this session hardened the metric, broadened the gold, and cleared the `temperature=0` single-sample noise with N-sampling.
 
-1. **Built `assignment_accuracy`** (`metrics.py`) — a per-deliverable task→domain match: for each gold deliverable, find the router task that mentions it (by a chosen `match` keyword) and check it landed in the gold domain. This is the metric `routing_precision` could not be — it sees *which* deliverable went to *which* domain, not just the invoked set.
-2. **Added `gold_decomposition` to `EvalCase`** (`cases.py`) and authored it for **bd-01** — 7 deliverables as `{deliverable, domain, match}`. On the original blind baseline bd-01 scored `Assignment = 0.857` (drift monitoring misrouted to devops_mlops) while `Coverage = Routing = 1.0` — the exact blindness the reframe predicted. Wired `assignment_accuracy` into `run_logger.py` as the `Assignment` column.
-3. **Fixed the orchestrator prompt** (`orchestrator.py`) — loaded a six-domain ownership charter + the four `agent_contracts.md` boundary rules into `decompose`'s system prompt, and set `temperature=0`. After the fix bd-01's `Assignment` rose **0.857 → 1.0** (drift now → ml_engineer).
-4. **Swept all 24 cases (routing-only) and recorded the re-baseline** → `eval_runs/2026-06-07.jsonl` (via `log_run`; `Acceptance`/`Fidelity` are `null` because no agents ran). **Delta vs `2026-06-04`: ~15 cases improved on `Routing`, 8 flat, 1 stable regression (md-12).**
-5. **Tried and reverted a precision-tightening prompt line.** A "scope discipline" line (don't route activities mentioned only as background) did **not** heal the targets (md-03/md-12 unchanged) and **broke md-15** (a `verified` case) by dropping its dbt work. Reverted to the rules-only prompt — the cleaner control.
+1. **Extended `gold_decomposition` to the 5 discriminating cases** (`cases.py`) — md-13, md-12, bd-02, bd-03 added (bd-01 already had it; also flipped `verified=True`). bd-02/bd-03 stay `verified=False` — their domain sets still need human sign-off before becoming training gold.
+2. **Built the decompose-only N-sample harness** (`run_baseline.py`) — samples `Orchestrator.decompose` N times per case (agents never run, so it is cheap and isolates the router) and logs one routing-only row per sample via `log_run(base_dir="eval_runs/nsample")`. Captured 24 cases × 5 → `eval_runs/nsample/2026-06-07.jsonl` (120 rows).
+3. **Inspected md-12 and bd-03** — confirmed the metric catches *real* errors: md-12 drops analytics every sample (its query/report-design work goes to data_engineer) and invents a devops_mlops CI/CD task despite "no CI/CD"; bd-03 over-routes software_dev + analytics and **misassigns "define promotion criteria" to ml_engineer** (gold: data_scientist) — a within-set misroute Coverage/Routing cannot see. The rest of the per-sample spread was keyword-matching noise (the `parameterized`/`mlflow`/`rollout` words migrating between tasks).
+4. **Rewrote `assignment_accuracy` to embedding-based** (`metrics.py`) — for each gold deliverable, the best cosine similarity to a task *in the expected domain*; hit if ≥ `threshold`. Added a `_cosine` helper. The keyword `match` field was removed from the gold entirely; deliverable text was enriched to read like a human description (not the router's phrasing).
+5. **Calibrated the threshold offline** (`calibrate_assignment.py`) — re-scored the 120 stored decompositions locally (no API), swept thresholds, and **locked `threshold = 0.30`**: correct on bd-01/bd-02/bd-03/md-13, beats keyword on every case, one residual false miss on md-12 (CSV dilution).
 
 **Key findings:**
-- **The prompt fix is a large, real win** — loading the boundary rules lifted routing precision on ~15/24 cases (sd-02 0.33→1.0, md-01/md-14 0.5→1.0, md-08 0.6→1.0 are well outside the noise floor).
-- **md-12 is the one stable regression** — "build an internal tool, no CI/CD asked" still makes the model invent a devops_mlops CI/CD task + a data_engineer SQL task. Prompting could not fix it (case-specific rules would be teaching-to-the-test). It is now the prime `gold_decomposition` target and the empirical case for the fine-tune.
-- **`temperature=0` decompositions are not reproducible at the ±1-task level.** md-03 flipped between `R=0.5` (regressed) and `R=0.67` (flat) across identical runs. So single-sample per-case deltas of ~±0.17 are inside the noise floor; trustworthy deltas (especially as a training reward) need **N samples per case**. This answers `training_eval_plan.md` §5.4 empirically.
+- **Embeddings removed keyword fragility but only *bridge* a deeper granularity mismatch.** Gold is per-deliverable; the orchestrator emits one prose paragraph per domain, so a short deliverable's signal is diluted (md-12 "CSV export" = 0.26, *below* a real miss at 0.29). 0.30 threads the needle on this data, but the margin is thin — re-calibrate when the gold set grows.
+- **The real fix is structural, not a better matcher** — make `decompose` emit `{deliverable, domain}` directly. Then `assignment_accuracy` is an exact, deterministic set comparison *and* the output shape equals the SFT target shape (`training_eval_plan.md` §4/§9). Deferred: it changes the production contract, invalidates the baseline, and forces a re-capture — do it with the orchestrator/training rework.
+- **An LLM-judge metric was rejected** for this role: a judge would be haiku @ temp=0, which we proved is non-deterministic — a noisy ruler defeats the trustworthy-delta goal. Embeddings are deterministic; that wins for a metric.
 
-Uncommitted at session close: modified `warlock/eval/cases.py`, `warlock/eval/metrics.py`, `warlock/eval/run_logger.py`, `warlock/orchestrator.py`. (`eval_runs/2026-06-07.jsonl` is gitignored — D8.)
+Uncommitted at session close: modified `warlock/eval/cases.py`, `warlock/eval/metrics.py`, `warlock/eval/training_eval_plan.md`; new `warlock/eval/run_baseline.py`, `warlock/eval/calibrate_assignment.py`. (`eval_runs/nsample/2026-06-07.jsonl` is gitignored — D8.)
 
-The active frontier is now **eval Session 3.5 item 2** — extend `gold_decomposition` to the remaining discriminating cases (md-12, bd-02, bd-03, md-13) so `assignment_accuracy` covers them — plus the methodological task of **N-sampling the baseline** to clear the `temperature=0` noise. The Phase 4 consensus loop (Session 4) remains open and independent.
+The active frontier is now **eval Session 3.5 items 3–4** — make `acceptance_rate` scope-aware (Fix A) + fence `output_fidelity` out of any reward, then author under-routing / hard-negative cases so `coverage` gains variance. The standing structural fix (deliverable-level `decompose` output) and the Phase 4 consensus loop (Session 4) remain open and independent.
 
 ---
 
@@ -48,7 +48,7 @@ Public-facing entry point. Project overview, stack, run command, triangle archit
 
 ### `CLAUDE.md` ✓ done
 
-Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note reflects Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`, the curated suite in `warlock/eval/cases.py` (now with a `verified` flag and bd-01 `gold_decomposition`), the built logger (`metrics.py` — now incl. `assignment_accuracy` — `run_logger.py`), the **captured baselines** (`eval_runs/2026-06-04.jsonl` blind, `eval_runs/2026-06-07.jsonl` prompt-fix), the review docs (`EVAL_REFERENCE.md`, `suite_notes.md`), the **measure→train reframe** (`warlock/eval/training_eval_plan.md`), the **prompt-fix re-baseline control** (charter + boundary rules + `temperature=0` in `decompose`), the session sequencing in `.specs/next-steps.md`, and the boundary contracts in `warlock/eval/agent_contracts.md`.
+Stripped to technical-only content. Points to `constitution.md` for all principles and collaboration rules. Build-sequence note reflects Phase 4 in progress, plus a pointer to the evaluation track in `.specs/eval_ml_plan.md`, the curated suite in `warlock/eval/cases.py` (a `verified` flag + `gold_decomposition` for the 5 discriminating cases), the built logger (`metrics.py` — incl. embedding-based `assignment_accuracy` — `run_logger.py`), the **captured baselines** (`eval_runs/2026-06-04.jsonl` blind, `eval_runs/2026-06-07.jsonl` prompt-fix, `eval_runs/nsample/2026-06-07.jsonl` N-sample), the review docs (`EVAL_REFERENCE.md`, `suite_notes.md`), the **measure→train reframe** (`warlock/eval/training_eval_plan.md`), the **prompt-fix re-baseline control** (charter + boundary rules + `temperature=0` in `decompose`), the session sequencing in `.specs/next-steps.md`, and the boundary contracts in `warlock/eval/agent_contracts.md`.
 
 ### `.specs/eval_ml_plan.md` ✓ done — evaluation system design
 
@@ -184,9 +184,9 @@ Third entry — **data_engineer ↔ devops_mlops** (decided in `md-15`): the sea
 
 > **Baseline observation:** on the original *blind-prompt* baseline the orchestrator *failed* the ml_engineer ↔ devops_mlops boundary in all three broad cases (drift monitoring → devops_mlops) and the data_scientist ↔ ml_engineer boundary in bd-02/bd-03 (training → ml_engineer). `routing_precision` saw neither (the misrouted domain is still inside the expected set); the `assignment_accuracy` metric (now built) does. **After loading these boundary rules into `Orchestrator.decompose` (+ `temperature=0`), bd-01 routes drift → ml_engineer correctly (`Assignment` 0.86→1.0)** — see `eval_runs/2026-06-07.jsonl`. The bd-02/bd-03 training boundary is not yet confirmed fixed (no gold authored there yet).
 
-### `warlock/eval/cases.py` ✓ done — curated eval suite (+ gold_decomposition this session)
+### `warlock/eval/cases.py` ✓ done — curated eval suite (gold extended this session)
 
-The human-owned ground truth the eval logger measures routing against (D2, D6). 20 of 24 cases are `verified=True` (md-15, bd-01, bd-02, bd-03 remain `False`, pending confirmation before they become training gold). **This session** added the `gold_decomposition` field (the per-example router target the reframe requires) and authored it for **bd-01**.
+The human-owned ground truth the eval logger measures routing against (D2, D6). **21 of 24 cases are `verified=True`** (bd-01 flipped `True` this session; md-15, bd-02, bd-03 remain `False`, pending confirmation before they become training gold). The `gold_decomposition` field (the per-example router target the reframe requires) is now authored for the **5 discriminating cases** — bd-01, bd-02, bd-03, md-12, md-13.
 
 ```python
 @dataclass
@@ -196,7 +196,7 @@ class EvalCase:
     expected_domains: list[str]
     notes: str = ""
     verified: bool = False
-    gold_decomposition: list[dict] = field(default_factory=list)   # added this session
+    gold_decomposition: list[dict] = field(default_factory=list)   # [{deliverable, domain}]
 
 SINGLE_DOMAIN: list[EvalCase] = [...]   # sd-01 … sd-06  (6)
 MULTI_DOMAIN:  list[EvalCase] = [...]   # md-01 … md-15  (15, md-13 precedes md-15)
@@ -204,8 +204,8 @@ BROAD_DOMAIN:  list[EvalCase] = [...]   # bd-01 … bd-03  (3)
 ALL_CASES = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD_DOMAIN   # 24 total
 ```
 
-- **`gold_decomposition`** is `list[{deliverable, domain, match}]` — `deliverable` is the human-readable unit of work (and the eventual SFT target text), `domain` is the gold assignment `assignment_accuracy` grades against, and `match` is a deliberately-chosen, robust substring the router's task should contain (the honest v0 anchor; to be replaced by embedding similarity later — `training_eval_plan.md` §6). Empty default ⇒ the other 23 cases are untouched and `assignment_accuracy` returns `None` for them.
-- **bd-01's gold** = 7 deliverables: clickstream→data_engineer, collaborative-filtering training→data_scientist, package+serving→ml_engineer, **drift monitoring→ml_engineer** (the boundary that catches the blind baseline's misroute), `/recommendations` API→software_dev, A/B traffic split→devops_mlops, CTR/conversion dashboard→analytics.
+- **`gold_decomposition`** is `list[{deliverable, domain}]` — `deliverable` is the human-readable unit of work (and the SFT target text), `domain` is the gold assignment `assignment_accuracy` grades against. The keyword `match` field was **removed this session** when the metric went embedding-based (the deliverable text is now the locator). Empty default ⇒ the 19 non-discriminating cases are untouched and `assignment_accuracy` returns `None` for them.
+- **The 5 golds** carry the boundary distinctions the big cases were built to test — e.g. **drift monitoring→ml_engineer** (bd-01/bd-02, catches the blind baseline's drift→devops misroute) and **define promotion criteria→data_scientist** (bd-03, catches the misroute to ml_engineer). Deliverable text reads like a human description, deliberately independent of the router's phrasing.
 - **24 cases** spanning routing width — 6 single-domain, 15 two-to-three-domain, 3 broad (the broad cases route 4–6 domains). Each case's `notes` gives per-domain inclusion and exclusion reasoning — what makes R (over-routing) measurable.
 - **Caution (`vars(cases)` collectors):** `cases` exposes both the category lists *and* `ALL_CASES`; iterate `ALL_CASES` (or dedupe by `id`) — naively scanning every module-level list double-counts each case.
 
@@ -213,7 +213,7 @@ ALL_CASES = SINGLE_DOMAIN + MULTI_DOMAIN + BROAD_DOMAIN   # 24 total
 
 Empty package file for the eval module.
 
-### `warlock/eval/metrics.py` ✓ done — five metric functions (+ assignment_accuracy this session)
+### `warlock/eval/metrics.py` ✓ done — five metric functions (`assignment_accuracy` now embedding-based)
 
 Pure functions over real memory keys, plus the embedding seam. Read-only — no writes to the bus.
 
@@ -230,14 +230,16 @@ def acceptance_rate(validation_results) -> float | None
 def output_fidelity(task_decomposition, agent_outputs) -> float | None
     # mean cosine( embed(task_i), embed(agent_output[domain_i]) ); None when no scorable outputs
 
-def assignment_accuracy(task_decomposition, gold_decomposition) -> float | None   # added this session
-    # for each gold deliverable: is there a router task containing its `match`
-    # keyword that is routed to the gold `domain`? fraction of hits.
+def assignment_accuracy(task_decomposition, gold_decomposition, threshold=0.30) -> float | None
+    # per gold deliverable: best cosine( embed(deliverable), embed(task) ) over tasks
+    # IN the expected domain; hit if >= threshold. fraction of hits.
     # None when the case has no gold_decomposition.
+
+def _cosine(a, b) -> float   # dot(a,b) / (norm(a)*norm(b))  — added this session
 ```
 
-- `_embedding(text)` lazily instantiates a module-level `SentenceTransformer("all-MiniLM-L6-v2")` and encodes; cosine computed with `numpy` `dot` / `norm`.
-- **`assignment_accuracy`** is the per-deliverable task→domain metric the reframe needed — it sees *within-set* misassignment that `routing_precision` (set-based) cannot. On the blind baseline bd-01 scored `0.857` (drift→devops_mlops) against `Routing=1.0`; after the prompt fix it is `1.0`. v0 limitation: the `match` substring can false-negative if the router phrases the task without the keyword — tighten to embeddings before it feeds a training loop.
+- `_embedding(text)` lazily instantiates a module-level `SentenceTransformer("all-MiniLM-L6-v2")` and encodes; `_cosine` (added this session) wraps the `numpy` `dot`/`norm` cosine.
+- **`assignment_accuracy`** is the per-deliverable task→domain metric the reframe needed — it sees *within-set* misassignment that `routing_precision` (set-based) cannot. **Rewritten this session from keyword-substring to embedding similarity** (the `match` field is gone): a hit means the expected domain has a task semantically close to the deliverable, which is robust to paraphrase. `threshold=0.30` was calibrated offline against the N-sample decompositions (`calibrate_assignment.py`) — correct on bd-01/bd-02/bd-03/md-13, one residual false miss on md-12 (short "CSV export" diluted in a multi-clause task). **Known limitation:** embeddings only bridge the per-deliverable-gold vs one-paragraph-per-domain granularity mismatch; the real fix is deliverable-level orchestrator output (`training_eval_plan.md` §9).
 - **Baseline review verdict (unchanged):** `coverage` and `routing_precision` trustworthy at the set level; `acceptance_rate` not a scope signal; `output_fidelity` rewards prompt-echo. Still open from the review: make `acceptance_rate` scope-aware and reframe/replace `output_fidelity` (`EVAL_REFERENCE.md` §10, `training_eval_plan.md` §6).
 
 ### `warlock/eval/run_logger.py` ✓ done — read-only per-run feature row (+ Assignment this session)
@@ -260,6 +262,25 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
 - `label=None` — rows are unlabeled until eval Step 2. `eval_runs/` is gitignored (D8).
 - **Note:** a *routing-only* re-baseline (decompose without running agents) yields rows with `Acceptance`/`Fidelity = null` and empty `raw_outputs` — that is how `eval_runs/2026-06-07.jsonl` was produced.
 
+### `warlock/eval/run_baseline.py` ✓ done — decompose-only N-sample harness (new this session)
+
+Samples the router without running agents — far cheaper than `orchestrator.run()` and isolates the routing target. For each case it calls `orchestrator.decompose(case.problem)` N times, writes `problem_statement` + `task_decomposition` to memory, and logs one routing-only row per sample via `log_run(case=case, base_dir="eval_runs/nsample")`. `Acceptance`/`Fidelity` are `null` by design (no agents, no embedding-model load). Malformed samples (bad JSON / missing `domain`) are skipped, not fatal. Prints a per-case `C`/`R`/`A` mean[min-max] summary.
+
+```bash
+uv run python -m warlock.eval.run_baseline --samples 5
+uv run python -m warlock.eval.run_baseline --samples 8 --cases md-12,bd-02,bd-03,md-13
+```
+
+Captured `eval_runs/nsample/2026-06-07.jsonl` (24 cases × 5 = 120 rows). Confirmed `temperature=0` is non-deterministic (Routing/Assignment spread across identical samples) and surfaced new Coverage variance (md-12 = 0.50, md-03 = 0.60 — the orchestrator drops a needed domain on those).
+
+### `warlock/eval/calibrate_assignment.py` ✓ done — offline threshold calibration (new this session)
+
+Re-scores the captured N-sample decompositions locally (no API — all-MiniLM on CPU). For each gold deliverable it computes the best cosine to a task in the expected domain, prints the per-deliverable similarity table (sorted, so real hits/misses separate) and a per-case Assignment sweep across thresholds 0.20–0.50. This is how `threshold=0.30` was chosen: it keeps bd-01/bd-02/md-13 perfect, catches bd-03's promotion-criteria misroute (sim 0.29 < 0.30) and md-12's analytics drop, with one CSV-dilution false miss. Re-run when the gold set grows.
+
+```bash
+uv run python -m warlock.eval.calibrate_assignment
+```
+
 ### `warlock/eval/EVAL_REFERENCE.md` ✓ done — consolidated metric + case review
 
 The single reference for "do the cases and metrics measure routing quality?" Reviews all 24 cases and all four (now five) metrics against the captured baseline.
@@ -275,11 +296,11 @@ Companion reference for interpreting per-case and aggregate results. Contains th
 
 The plan that recasts the eval from a *measurement* instrument into a *training signal* for a small LLM. Core thesis: **the bar for a reward is higher than for a metric** — a reward is optimized against, so every confound a metric is allowed to have becomes a degenerate path. Contents:
 - **Train the router first** (orchestrator: `problem → [{domain, task}]`) — gold is authorable, the suite already half-measures it, highest leverage. Defer the domain agents (gold outputs expensive) and the supervisor (circular to train a judge on outputs it grades).
-- **Blocker:** cases carry only `expected_domains` (a *set*); SFT needs a per-example **`gold_decomposition`** (`[{deliverable, domain}]`). **Now started — added to `EvalCase`, authored for bd-01.** Author it for the rest of the discriminating cases; it triples as SFT target, `assignment_accuracy` source, and dense reward.
-- **Metrics as rewards:** `coverage` keep-but-give-variance; `routing_precision` keep-never-alone; `acceptance_rate` fix before any reward use; `output_fidelity` do-not-reward; add `assignment_accuracy` (**built**).
+- **Blocker:** cases carry only `expected_domains` (a *set*); SFT needs a per-example **`gold_decomposition`** (`[{deliverable, domain}]`). **Now done — added to `EvalCase`, authored for the 5 discriminating cases (bd-01/02/03, md-12, md-13).** It triples as SFT target, `assignment_accuracy` source, and dense reward.
+- **Metrics as rewards:** `coverage` keep-but-give-variance; `routing_precision` keep-never-alone; `acceptance_rate` fix before any reward use; `output_fidelity` do-not-reward; add `assignment_accuracy` (**built, now embedding-based**).
 - **Two distinct "small models":** the `[C,R,A,F]→y` logistic-regression eval-classifier (the **reward model / quality gate**) vs. the fine-tuned router (the **task-LLM** being improved). The suite is the router's held-out test and, once trustworthy, its reward.
 - **Empirical findings** (§5): Coverage = 1.0 everywhere (no recall gradient), no labels yet, the orchestrator routed blind (**now fixed**), and decomposition is non-deterministic — **§5.4 confirmed this session: even `temperature=0` decompositions vary ±1 task run-to-run, so a trustworthy baseline needs N samples.**
-- **Priority order** (§10): prompt-fix re-baseline (**done**) → `gold_decomposition` + `assignment_accuracy` (**started**) → scope-aware `A` / fence `F` → under-routing cases → `label.py` → generation + frozen holdout.
+- **Priority order** (§10): prompt-fix re-baseline (**done**) → `gold_decomposition` + `assignment_accuracy` (**done, embedding-based**) → scope-aware `A` / fence `F` → under-routing cases → `label.py` → generation + frozen holdout. §9 now records the structural root-cause fix (deliverable-level orchestrator output).
 
 ### `warlock/orchestrator.py` ✓ done — decompose, route, time, supervise (prompt fixed this session)
 
@@ -337,15 +358,15 @@ Ignores all `*.txt` audit dumps, the `traces/` directory, and (D8) the `eval_run
 
 ## What we are building next
 
-### Eval Session 3.5 item 2 — extend gold + N-sample the baseline (active frontier)
+### Eval Session 3.5 items 3–4 — scope-aware `A`, under-routing cases (active frontier)
 
-Step 1 (the prompt-fix control) is done and recorded. Two threads now:
+Steps 1–2 are done: prompt-fix control captured, gold authored for the 5 discriminating cases, `assignment_accuracy` made embedding-based, and the baseline N-sampled (`eval_runs/nsample/2026-06-07.jsonl`). Remaining 3.5 work, all pure eval-layer (no change to production behavior):
 
-**A. Extend `gold_decomposition` to the remaining discriminating cases.** bd-01 has its gold; author it for **md-12** (the one stable regression — highest value), then **bd-02, bd-03, md-13** and the boundary `md-*`. Each is `[{deliverable, domain, match}]`, hand-authored from the case notes + `agent_contracts.md`, **human-reviewed before it becomes training gold** (D2/D6). This extends `assignment_accuracy` coverage from 1 case to the full discriminating set and fixes the SFT target shape.
+**Item 3 — make `acceptance_rate` scope-aware + fence `output_fidelity`.** Fix A (`EVAL_REFERENCE.md` §10.1): a post-hoc override in the eval layer — a domain ∉ `expected_domains` ⇒ its acceptance counts as rejected — so `A` stops inverting against scope. And document/fence `output_fidelity` out of any reward (it rewards prompt-echo). Small edits in `metrics.py`/`run_logger.py`; the supervisor's production behavior is untouched.
 
-**B. N-sample the routing baseline.** The `temperature=0` noise finding means one draw per case is not trustworthy for per-case deltas. Re-run each case **N times** (3–5) and record per-case mean ± spread of `Coverage`/`Routing`/`Assignment`. This is the precondition for using the suite as a *training reward* (a noisy reward teaches noise). The §5.4 greedy-vs-N-sample question is now answered by evidence: N-sample.
+**Item 4 — author under-routing / hard-negative cases.** `coverage` is still ~1.0 across the suite (the orchestrator over-routes, never under-routes), so recall has no gradient. Author cases where dropping a needed domain is the *easy* mistake (e.g. a problem that reads as pure software work but genuinely needs `data_engineer`), so `coverage` gains variance as both metric and reward.
 
-Then items 3–4 of Session 3.5: make `acceptance_rate` scope-aware (Fix A) and fence `output_fidelity` out of any reward (both post-hoc eval-layer overrides, no change to production behavior); author under-routing / hard-negative cases so `coverage` gains variance (today it is 1.0 on every case).
+**Standing structural fix (with the orchestrator/training rework, not now):** make `decompose` emit `{deliverable, domain}` instead of one prose task per domain. Turns `assignment_accuracy` into an exact, deterministic set comparison and makes the output shape identical to the SFT target (`training_eval_plan.md` §9). Cost: changes the production contract, invalidates the baseline, forces a re-capture.
 
 ### Phase 4 consensus loop (Session 4 — runs independently of the eval-training work)
 
@@ -390,14 +411,16 @@ warlock/
 │   ├── data_scientist.py  ✓ done
 │   └── software_dev.py    ✓ done
 └── eval/
-    ├── __init__.py            ✓ done
-    ├── cases.py               ✓ done — 24 EvalCase suite + verified flag (20/24) + gold_decomposition (bd-01); BROAD_DOMAIN
-    ├── agent_contracts.md     ✓ done — settled domain boundaries (ds ↔ mle, mle ↔ devops, de ↔ devops)
-    ├── metrics.py             ✓ done — coverage, routing_precision, acceptance_rate, output_fidelity, assignment_accuracy
-    ├── run_logger.py          ✓ done — read-only per-run feature row (+ Assignment) → eval_runs/<date>.jsonl
-    ├── EVAL_REFERENCE.md      ✓ done — per-case + per-metric correctness review
-    ├── suite_notes.md         ✓ done — how to read aggregate scores
-    └── training_eval_plan.md  ✓ done — measure→train reframe (router-first)
+    ├── __init__.py              ✓ done
+    ├── cases.py                 ✓ done — 24 EvalCase suite + verified flag (21/24) + gold_decomposition (5 cases, no match); BROAD_DOMAIN
+    ├── agent_contracts.md       ✓ done — settled domain boundaries (ds ↔ mle, mle ↔ devops, de ↔ devops)
+    ├── metrics.py               ✓ done — coverage, routing_precision, acceptance_rate, output_fidelity, assignment_accuracy (embedding, 0.30)
+    ├── run_logger.py            ✓ done — read-only per-run feature row (+ Assignment) → eval_runs/<date>.jsonl
+    ├── run_baseline.py          ✓ done — decompose-only N-sample harness → eval_runs/nsample/<date>.jsonl
+    ├── calibrate_assignment.py  ✓ done — offline threshold sweep for assignment_accuracy
+    ├── EVAL_REFERENCE.md        ✓ done — per-case + per-metric correctness review
+    ├── suite_notes.md           ✓ done — how to read aggregate scores
+    └── training_eval_plan.md    ✓ done — measure→train reframe (router-first)
 constitution.md             ✓ done
 README.md                   ✓ done
 CLAUDE.md                   ✓ done
@@ -406,9 +429,10 @@ main.py                     ✓ done — six agents + supervisor + cased log_run
 pyproject.toml              ✓ done — + numpy, sentence-transformers
 eval_runs/2026-06-04.jsonl  ✓ captured (gitignored) — 24-row blind baseline, one per case
 eval_runs/2026-06-07.jsonl  ✓ captured (gitignored) — 24-row prompt-fix re-baseline (routing-only)
+eval_runs/nsample/2026-06-07.jsonl ✓ captured (gitignored) — 120-row N-sample routing baseline (24×5)
 .specs/eval_ml_plan.md      ✓ done — evaluation system design, D1–D8 settled
-.specs/next-steps.md        ✓ done — session sequencing (S1–S3 done, S3.5 item 1 done)
-                            ← next: extend gold_decomposition (md-12, bd-02/03, md-13) + N-sample baseline
+.specs/next-steps.md        ✓ done — session sequencing (S1–S3 done, S3.5 items 1–2 done)
+                            ← next: scope-aware acceptance_rate + under-routing cases; structural fix = deliverable-level decompose output
 ```
 
 ---

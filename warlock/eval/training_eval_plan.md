@@ -188,13 +188,18 @@ Builds on `EVAL_REFERENCE §10`, but judged by the optimization bar of §2.
   if execution quality must enter the signal. At minimum, document that the implementation
   scores against per-task text (per `eval_ml_plan` D1), since prose elsewhere drifts to
   "problem statement."
-- **`assignment_accuracy` — add (new).** The dense per-decision signal training wants, and
-  the only metric that sees the boundary distinctions the big cases were built to test. A
-  substring keyword match (gold deliverable keyword ∈ task text, same domain) is an
-  adequate v0 for measurement, but as a **reward** its false negatives are the dangerous
-  direction: a correctly-routed deliverable phrased without the gold keyword scores as
-  wrong, which would teach the model to parrot keywords. Tighten to robust keywords or
-  embedding similarity before it feeds a training loop.
+- **`assignment_accuracy` — built, now embedding-based.** The dense per-decision signal
+  training wants, and the only metric that sees the boundary distinctions the big cases
+  were built to test. A substring keyword match was the v0; it false-missed on paraphrase
+  (a correctly-routed deliverable phrased without the gold keyword scored wrong), so it was
+  replaced with **embedding similarity** (gold deliverable ↔ best task *in the expected
+  domain*, cosine ≥ 0.30), calibrated offline against the 2026-06-07 N-sample decompositions
+  (`calibrate_assignment.py`). It is correct on bd-01/bd-02/bd-03/md-13, beats keyword on
+  every case, and the `match` field is gone. **Root-cause limitation:** embedding matching
+  only *bridges* a granularity mismatch — per-deliverable gold vs the orchestrator's
+  one-paragraph-per-domain output — it does not remove it, which is why md-12's short "CSV
+  export" deliverable stays diluted below threshold. The real fix is structural, in §9
+  (orchestrator), not a better matcher.
 
 ---
 
@@ -253,7 +258,9 @@ confidence tag, can double as the router's training reward.
   stop being re-derived per case.
 
 **`metrics.py`**
-- Add **`assignment_accuracy`** (per-task gold match).
+- **`assignment_accuracy` — built, embedding-based** (cosine ≥ 0.30, calibrated; see §6).
+  The keyword `match` field is removed from the gold. Re-calibrate the threshold when the
+  gold set grows; the real fix is deliverable-level orchestrator output (orchestrator bullet below).
 - Make **`acceptance_rate` scope-aware** (Fix A) — two lines in the eval layer, no change
   to the supervisor's production behavior.
 - **Reframe or replace `output_fidelity`**; add a docstring stating what it actually
@@ -266,9 +273,17 @@ confidence tag, can double as the router's training reward.
   `task_decomposition` captured so features/golds are re-computable (already done — good).
 
 **`orchestrator.py`**
-- Put the **boundary rules + a few gold decompositions** (few-shot) into the prompt and
-  set **`temperature=0`**. Re-baseline (§5.3, §5.4). The cheapest win and the control any
-  fine-tune must beat.
+- **Done (§10 step 1):** boundary rules in the `decompose` prompt + `temperature=0`,
+  re-baselined (`eval_runs/2026-06-07.jsonl`, then N-sample `eval_runs/nsample/`).
+- **Structural fix — emit deliverable-level output.** `decompose` returns one prose
+  `{domain, task}` per domain, bundling several deliverables into one paragraph. That
+  granularity mismatch is the root cause of every `assignment_accuracy` matching wart
+  (keyword fragility, embedding dilution) — see §6. Changing the output contract to a list
+  of `{deliverable, domain}` makes `assignment_accuracy` an **exact, deterministic set
+  comparison** (no embeddings/threshold/judge) *and* makes the orchestrator's output shape
+  identical to the gold/SFT target shape (§4). Cost: it changes the production decomposition
+  contract (agents consume the task text), invalidates the current baseline, and forces a
+  re-capture — so land it with the orchestrator/training rework, not as a metric patch.
 
 ---
 

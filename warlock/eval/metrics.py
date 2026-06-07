@@ -12,6 +12,10 @@ def _embedding(text: str) -> list[float]:
     return _model.encode(text)
 
 
+def _cosine(a, b) -> float:
+    return float(dot(a, b) / (norm(a) * norm(b)))
+
+
 def coverage(
     task_decomposition: list[dict], expected_domains: list[str] | None
 ) -> float | None:
@@ -67,14 +71,33 @@ def output_fidelity(
 
 
 def assignment_accuracy(
-    task_decomposition: list[dict], gold_decomposition: list[dict] | None
+    task_decomposition: list[dict],
+    gold_decomposition: list[dict] | None,
+    threshold: float = 0.30,
 ) -> float | None:
+    """Per-deliverable routing accuracy via embedding similarity.
+
+    A gold deliverable scores a hit when the orchestrator produced a task
+    *in the expected domain* whose text is semantically close to the
+    deliverable (cosine >= threshold). Embedding-based so it is robust to
+    paraphrase. threshold=0.30 was calibrated against the 2026-06-07 N-sample
+    decompositions (calibrate_assignment.py): correct on bd-01/bd-02/bd-03/md-13,
+    one residual false miss on md-12 (short "CSV export" deliverable diluted in
+    software_dev's multi-clause task). Re-calibrate when the gold set grows.
+    """
     if not gold_decomposition:
         return None
+    task_embeddings = [
+        (t["domain"], _embedding(t["task"])) for t in task_decomposition
+    ]
     hits = 0
     for gold in gold_decomposition:
-        keyword = gold["match"].lower()
-        matched = [t for t in task_decomposition if keyword in t["task"].lower()]
-        if any(t["domain"] == gold["domain"] for t in matched):
+        gold_embedding = _embedding(gold["deliverable"])
+        sims = [
+            _cosine(gold_embedding, emb)
+            for domain, emb in task_embeddings
+            if domain == gold["domain"]
+        ]
+        if sims and max(sims) >= threshold:
             hits += 1
     return hits / len(gold_decomposition)
