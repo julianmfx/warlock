@@ -1,4 +1,5 @@
 import json
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,10 +22,15 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
 
     has_case = case is not None
     expected_domains = case.expected_domains if has_case else None
+    run_config = memory.read("run_config") or {}
 
     row = {
         "run_id": str(uuid.uuid4()),
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "git_sha": _git_sha(),
+        # router/orchestrator model — the row is a routing record, not whole-system
+        "model": run_config.get("model"),
+        "temperature": run_config.get("temperature"),
         "problem": problem,
         "Coverage": coverage(task_decomposition, expected_domains),
         "Routing": routing_precision(task_decomposition, expected_domains),
@@ -36,6 +42,8 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
         "has_case": has_case,
         "case_id": case.id if has_case else None,
         "iteration": _max_iteration(validation_results),
+        "token_spend": memory.read("token_spend") or {},
+        "timing": memory.read("timing") or {},
         "task_decomposition": task_decomposition,
         "raw_outputs": agent_outputs,
         "validation_results": validation_results,
@@ -49,6 +57,27 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     return row
+
+
+def _git_sha() -> str | None:
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        # non-empty porcelain = tracked edits or new untracked files (ignored
+        # files excluded) — the run differs from the committed state
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        return f"{sha}-dirty" if dirty else sha
+    except Exception:
+        return None
 
 
 def _max_iteration(validation_results: dict) -> int:

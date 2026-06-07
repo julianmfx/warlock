@@ -221,6 +221,19 @@ Builds on `EVAL_REFERENCE §10`, but judged by the optimization bar of §2.
   to imitate strong-model gold decompositions, then optionally refine with the eval as a
   reward. Cheaper and more stable than RL-from-scratch at this data scale.
 
+> **Caution — the distillation signal must be structured** (Anthropic, "How Anthropic
+> enables self-service data analytics with Claude", 2026-06-03). Their most useful ablation
+> was a *negative* one: giving the agent raw grep access to thousands of correct prior
+> queries moved accuracy **<1 point**, even with the answer present ~80% of the time — the
+> *structured* per-domain reference docs carried the signal, not the corpus. Separately,
+> auto-generating their semantic layer with an LLM "encoded the very ambiguities we were
+> trying to eliminate" and scored **net-negative**. Two constraints this puts on the bullets
+> above: (1) the SFT label is the *structured* gold (`gold_decomposition` +
+> `agent_contracts.md`), **not** a dump of raw decompositions — expect raw-corpus
+> augmentation to underperform structured golds; (2) Claude *drafts* the gold, a human
+> *owns the definition* — exactly the D2/D6 rule the "Generate, then audit" bullet already
+> states, which the post confirms the hard way.
+
 ---
 
 ## 8. Two "small models" — keep them distinct

@@ -46,6 +46,7 @@ class Orchestrator:
     def decompose(self, problem):
         domains = ", ".join(self._agents.keys())
         system = ROLE.format(domains=domains)
+        self._memory.write("run_config", {"model": self._model, "temperature": 0})
         response = self._client.complete(
             model=self._model,
             system=system,
