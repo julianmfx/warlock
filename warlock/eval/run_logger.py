@@ -6,6 +6,7 @@ from pathlib import Path
 from warlock.eval.cases import EvalCase
 from warlock.eval.metrics import (
     acceptance_rate,
+    assignment_accuracy,
     coverage,
     output_fidelity,
     routing_precision,
@@ -27,6 +28,9 @@ def log_run(memory, case: EvalCase | None = None, base_dir: str = "eval_runs"):
         "problem": problem,
         "Coverage": coverage(task_decomposition, expected_domains),
         "Routing": routing_precision(task_decomposition, expected_domains),
+        "Assignment": assignment_accuracy(
+            task_decomposition, case.gold_decomposition if has_case else None
+        ),
         "Acceptance": acceptance_rate(validation_results),
         "Fidelity": output_fidelity(task_decomposition, agent_outputs),
         "has_case": has_case,

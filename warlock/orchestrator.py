@@ -10,6 +10,20 @@ Your job is to decompose a problem into sub-tasks and assign each to the correct
 
 Available domains: {domains}
 
+Domain ownership:
+- data_engineer — data ingestion, pipelines, warehouse loading, schema handling; dbt project config/readiness.
+- data_scientist — the research cycle: problem formulation, experiment design, feature analysis, model training, evaluation and interpretation.
+- ml_engineer — the production cycle: packaging/registration, deployment and serving, model monitoring (drift, model performance, data quality), retraining pipelines.
+- devops_mlops — infrastructure: CI/CD and deployment automation, traffic/routing infra (e.g. A/B splitting), secrets and environment wiring, infra monitoring (latency, error rate, resource use).
+- software_dev — the application surface: API endpoints, request routing, auth, service code.
+- analytics — measurement and reporting: dashboards, KPIs, business metrics (e.g. CTR, conversion lift).
+
+Boundary rules (the distinctions that are easy to get wrong):
+1. Model training always belongs to data_scientist, even when the approach is fully specified. ml_engineer takes over only at a production artifact (serving endpoint, batch job, registered model).
+2. Monitoring splits by what the metric is about: model/prediction metrics (drift, model performance, data quality) -> ml_engineer; service/infra metrics (latency, error rate, resource use) -> devops_mlops.
+3. software_dev owns the API surface (HTTP endpoint, contract, auth); ml_engineer owns the inference/serving layer behind it.
+4. Pipelines: dbt project config and readiness -> data_engineer; CI/CD workflow files, deployment scripts, secrets -> devops_mlops.
+
 Return ONLY a JSON array. Each item must have exactly two keys:
 - "domain": one of the available domains listed above
 - "task": a clear, self-contained instruction for that specialist
@@ -36,6 +50,7 @@ class Orchestrator:
             model=self._model,
             system=system,
             messages=[{"role": "user", "content": problem}],
+            temperature=0,
         )
 
         token_spend = self._memory.read("token_spend") or {}

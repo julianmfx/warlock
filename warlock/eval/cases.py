@@ -8,6 +8,7 @@ class EvalCase:
     expected_domains: list[str]
     notes: str = ""
     verified: bool = False
+    gold_decomposition: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -531,6 +532,15 @@ BROAD_DOMAIN: list[EvalCase] = [
             "infrastructure — these are deliberately split to test that distinction. "
             "software_dev owns the API surface; ml_engineer owns the inference layer behind it."
         ),
+        gold_decomposition=[
+            {"deliverable": "clickstream instrumentation + ingestion", "domain": "data_engineer",  "match": "clickstream"},
+            {"deliverable": "train collaborative-filtering model",     "domain": "data_scientist", "match": "collaborative"},
+            {"deliverable": "package model + serving integration",     "domain": "ml_engineer",    "match": "package"},
+            {"deliverable": "prediction-drift monitoring",             "domain": "ml_engineer",    "match": "drift"},
+            {"deliverable": "GET /recommendations/{user_id} API",      "domain": "software_dev",   "match": "/recommendations"},
+            {"deliverable": "A/B traffic-splitting deploy",            "domain": "devops_mlops",   "match": "traffic"},
+            {"deliverable": "CTR / conversion-lift dashboard",         "domain": "analytics",      "match": "conversion"},
+        ],
     ),
     EvalCase(
         id="bd-02",

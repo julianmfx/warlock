@@ -64,3 +64,17 @@ def output_fidelity(
         return None
     metric = sum(scores) / len(scores)
     return float(metric)
+
+
+def assignment_accuracy(
+    task_decomposition: list[dict], gold_decomposition: list[dict] | None
+) -> float | None:
+    if not gold_decomposition:
+        return None
+    hits = 0
+    for gold in gold_decomposition:
+        keyword = gold["match"].lower()
+        matched = [t for t in task_decomposition if keyword in t["task"].lower()]
+        if any(t["domain"] == gold["domain"] for t in matched):
+            hits += 1
+    return hits / len(gold_decomposition)
